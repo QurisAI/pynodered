@@ -1,27 +1,35 @@
-import os
 import collections
 import json
+import os
 from pathlib import Path
+
+
+class PynodeException(Exception):
+    pass
+
+
+def replace_quotes_on_marked_strings(s):
+    return s.replace('"@!@', '').replace('@!@"', '')
 
 
 class NodeProperty(object):
     """a Node property. This is usually use to decalre field in a class deriving from RNBaseNode.
     """
 
-    def __init__(self, title=None, type="str", value="", required=False, input_type="text", values=None):
-
+    def __init__(self, title=None, type="str", value="", required=False, input_type="text", values=None, validate=None):
         self.type = type
         self.value = value  # default value
         self.values = values  # values for a select to pick from
 
         self.title = title
+        self.validate = validate
         self.required = required
         self.input_type = input_type
 
     def as_dict(self, *args):
         self.title = self.title or self.name
         if len(args) == 0:
-            args = {"name", "title", "type", "value", "title", "required", "input_type"}
+            args = {"name", "title", "type", "value", "title", "required", "input_type", "validate"}
 
         return {a: getattr(self, a) for a in args}
 
@@ -55,6 +63,25 @@ class RNBaseNode(metaclass=FormMetaClass):
             os.mkdir(node_dir)
         except OSError:
             pass
+        for property in cls.properties:
+            new_validate = None
+            if property.validate == None:
+                pass
+            elif property.validate == 'int':
+                new_validate = "RED.validators.number()"
+            elif property.validate.startswith('regexp:'):
+                regexp = property.validate.split(":", 1)[1]
+                new_validate = "RED.validators.regex({})".format(regexp)
+            elif property.validate.startswith('function:'):
+                function = property.validate.split(":", 1)[1]
+                new_validate = "{}".format(function)
+
+            if new_validate:
+                # json doesn't allow us to write unquoted strings to the output, so we have to remove them manually
+                # also note that double quotes will be escaped, so use single quotes only #todo fix the json encoding
+                property.validate = "@!@{}@!@".format(new_validate)
+            else:
+                del property.validate
 
         for ext in ['js', 'html']:
             in_path = Path(__file__).parent / "templates" / ("%s.%s.in" % (cls.rednode_template, ext))
@@ -70,8 +97,7 @@ class RNBaseNode(metaclass=FormMetaClass):
         form = ""
 
         for property in cls.properties:
-            defaults[property.name] = property.as_dict('value', 'required', 'type')
-            
+            defaults[property.name] = property.as_dict('value', 'required', 'type', 'validate')
             if property.input_type == "text":
                 form += """
                    <div class="form-row">
@@ -97,9 +123,10 @@ class RNBaseNode(metaclass=FormMetaClass):
                     <select id="node-input-%(name)s">
                     """ % property.as_dict()
                 for val in property.values:
-                    form += "<option  value=\"{0}\" {1}>{0}</option>\n".format(val, "selected=\"selected\"" if val == property.value else "")
+                    form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
+                                                                            "selected=\"selected\"" if val == property.value else "")
 
-                form += """    </select>
+                form += """</select>
                     </div> """
             else:
                 raise Exception("Unknown input type")
@@ -123,7 +150,7 @@ class RNBaseNode(metaclass=FormMetaClass):
                  'category': cls.category,
                  'description': cls.description,
                  'labels_text': label_text,
-                 'defaults': json.dumps(defaults),
+                 'defaults': replace_quotes_on_marked_strings(json.dumps(defaults)),
                  'form': form
                  }
 
@@ -131,12 +158,23 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         open(out_path, 'w').write(t)
 
-    def run(self, msg, config):
+    def run(self, msg, config, context):
 
+        self.global_data = context.get("global")
+        self.node_data = context.get("node")
+        self.flow_data = context.get("flow")
+
+        self.node_id = config.get('id')
         for p in self.properties:
             p.value = config.get(p.name)
-
-        return self.work(msg)
+        rv = self.work(msg)
+        rv['context'] = {}
+        rv['context']['global'] = self.global_data
+        rv['context']['node'] = self.node_data
+        rv['context']['flow'] = self.flow_data
+        if not 'selected_output' in rv:
+            rv['selected_output'] = self.default_output
+        return rv
 
 
 class NodeWaiting(Exception):
@@ -148,9 +186,7 @@ def silent_node_waiting(f):
         try:
             return f(*args, **kwargs)
         except NodeWaiting:
-            # print('silent_node_waiting')
             return None  # silent_node_waiting
-
     return applicator
 
 
@@ -192,7 +228,8 @@ to continue without error. Once all the message with the expected topics are arr
 
 
 def node_red(name=None, title=None, category="default", description=None,
-             join=None, baseclass=RNBaseNode, properties=None, icon=None, color=None, outputs=1, output_labels=None):
+             join=None, baseclass=RNBaseNode, properties=None, icon=None, color=None, outputs=1, output_labels=None,
+             default_output=0):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
     msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload', 'topic' and 'msgid_'.
     The node argument is an instance of the underlying class created by this decorator. It can be useful when you have a defined a common subclass
@@ -205,15 +242,21 @@ def node_red(name=None, title=None, category="default", description=None,
         attrs['description'] = description if description is not None else func.__doc__
         attrs['category'] = getattr(baseclass, "category", category)  # take in the baseclass if possible
         attrs['icon'] = icon if icon is not None else 'function'
+        attrs['outputs'] = outputs if outputs is not None else 1
+        if len(output_labels) > outputs:
+            raise PynodeException("Invalid number of labels")
+        attrs['output_labels'] = output_labels if output_labels is not None else []
+        attrs['default_output'] = default_output if type(default_output) == int and 0 <= default_output < outputs else 1
 
         try:
             if isinstance(color, str):
                 attrs['color'] = color
             else:
-                attrs['color'] = "rgb({},{},{})".format(color[0], color[1], color[2]) if color is not None else "rgb(231,231,174)"
+                attrs['color'] = "rgb({},{},{})".format(color[0], color[1],
+                                                        color[2]) if color is not None else "rgb(231,231,174)"
         except (IndexError, TypeError):
             attrs['color'] = color
- 
+
         if join is not None:
             if isinstance(join, Join):
                 attrs['join'] = join

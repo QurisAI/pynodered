@@ -57,11 +57,27 @@ module.exports = function(RED) {
             var payload = null;
 
             if (msg.payload && (method == "POST" || method == "PUT" || method == "PATCH" ) ) {
-  
+               var nodeContext = this.context();
+               var flowContext = this.context().flow;
+               var globalContext = this.context().global;
+               var gl_keys = globalContext.keys();
+               var fl_keys = flowContext.keys();
+               var nd_keys = nodeContext.keys();
+               var glob = {}, fl = {}, nd = {};
+               gl_keys.map(function(e, i) { glob[e] = globalContext.get(e)});
+               fl_keys.map(function(e, i) { fl[e] = flowContext.get(e)});
+               nd_keys.map(function(e, i) { nd[e] = nodeContext.get(e)});
+               var context = {
+                "global": glob,
+                "flow": fl,
+                "node": nd
+               };
+
                 payload = {
                     "jsonrpc": "2.0",
                     "method": "%(name)s",
-                    "params": { "msg": msg, "config": n},
+                    "params": { "msg": msg, "config": n, "context": context
+                    },
                     "id": "1"}
                 payload = JSON.stringify(payload);
                 if (opts.headers['content-type'] == null) {
@@ -100,9 +116,20 @@ module.exports = function(RED) {
                     try { msg.payload = JSON.parse(msg.payload); }
                     catch(e) { node.warn(RED._("httpin.errors.json-error")); }
                     try {
+                        var context = msg.payload["result"]["context"];
+                        for (const key in context["global"]) {
+                            globalContext.set(key, context.global[key]);
+                        }
+                        for (const key in context["node"]) {
+                            nodeContext.set(key, context.node[key]);
+                        }
+                        for (const key in context["flow"]) {
+                            flowContext.set(key, context.flow[key]);
+                        }
                         const output = msg.payload["result"]["selected_output"];
                         const msgs = [];
                         delete msg.payload["result"]["selected_output"];
+                        delete msg.payload["result"]["context"];
                         msgs[output] = msg.payload["result"];
                         node.send(msgs);
                     } catch(e) {
