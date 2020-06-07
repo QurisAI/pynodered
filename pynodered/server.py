@@ -1,20 +1,17 @@
-import sys
 import argparse
-import glob
-from pathlib import Path
+import copy
 import importlib
 import inspect
-import pprint
 import json
-import copy
+import sys
+from pathlib import Path
 
 from flask import Flask
-from flask import Blueprint, jsonify
-
 from jsonrpc.backend.flask import api
-# https://media.readthedocs.org/pdf/json-rpc/latest/json-rpc.pdf
 
 from pynodered.core import silent_node_waiting
+
+# https://media.readthedocs.org/pdf/json-rpc/latest/json-rpc.pdf
 
 app = Flask(__name__)
 app.register_blueprint(api.as_blueprint())
