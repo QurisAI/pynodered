@@ -5,15 +5,13 @@ from pathlib import Path
 
 
 class NodeProperty(object):
-    """a Node property. This is usually use to decalre field in a class deriving from RNBaseNode.
+    """a Node property. This is usually use to declare field in a class deriving from RNBaseNode.
     """
 
     def __init__(self, title=None, type="str", value="", required=False, input_type="text", values=None):
-
-        self.type = type
+        self.type = type  # needed for configuration nodes
         self.value = value  # default value
         self.values = values  # values for a select to pick from
-
         self.title = title
         self.required = required
         self.input_type = input_type
@@ -22,7 +20,6 @@ class NodeProperty(object):
         self.title = self.title or self.name
         if len(args) == 0:
             args = {"name", "title", "type", "value", "title", "required", "input_type"}
-
         return {a: getattr(self, a) for a in args}
 
 
@@ -35,7 +32,7 @@ class FormMetaClass(type):
             if isinstance(attr, NodeProperty):
                 attr.name = name
                 properties.append(attr)
-        # sorting manually corresponds to the definision order of Fields.
+        # sorting manually corresponds to the definition order of Fields.
         new_class.properties = properties
         return new_class
 
@@ -70,8 +67,9 @@ class RNBaseNode(metaclass=FormMetaClass):
         form = ""
 
         for property in cls.properties:
-            defaults[property.name] = property.as_dict('value', 'required', 'type')
-            
+            # defaults[property.name] = property.as_dict('value', 'required', 'type')
+            defaults[property.name] = property.as_dict('value', 'required')
+
             if property.input_type == "text":
                 form += """
                    <div class="form-row">
@@ -97,8 +95,8 @@ class RNBaseNode(metaclass=FormMetaClass):
                     <select id="node-input-%(name)s">
                     """ % property.as_dict()
                 for val in property.values:
-                    form += "<option  value=\"{0}\" {1}>{0}</option>\n".format(val, "selected=\"selected\"" if val == property.value else "")
-
+                    form += "<option value=\"{0}\" {1}>{0}</option>\n".format(val,
+                                                                              "selected=\"selected\"" if val == property.value else "")
                 form += """    </select>
                     </div> """
             else:
@@ -114,6 +112,8 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         t = open(in_path).read()
 
+        label_string = '[' + ",".join(["this." + a for a in cls.label]) + "]"
+
         t = t % {'port': port,
                  'name': cls.name,
                  'title': cls.title,
@@ -124,10 +124,11 @@ class RNBaseNode(metaclass=FormMetaClass):
                  'description': cls.description,
                  'labels_text': label_text,
                  'defaults': json.dumps(defaults),
+                 'label': label_string,
                  'form': form
                  }
 
-        print("writing %s" % (str(out_path),))
+        print("writing %s" % (out_path,))
 
         open(out_path, 'w').write(t)
 
@@ -192,7 +193,8 @@ to continue without error. Once all the message with the expected topics are arr
 
 
 def node_red(name=None, title=None, category="default", description=None,
-             join=None, baseclass=RNBaseNode, properties=None, icon=None, color=None, outputs=1, output_labels=None):
+             join=None, baseclass=RNBaseNode, properties=None, icon=None, color=None, outputs=1, output_labels=None,
+             label=None):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
     msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload', 'topic' and 'msgid_'.
     The node argument is an instance of the underlying class created by this decorator. It can be useful when you have a defined a common subclass
@@ -205,15 +207,12 @@ def node_red(name=None, title=None, category="default", description=None,
         attrs['description'] = description if description is not None else func.__doc__
         attrs['category'] = getattr(baseclass, "category", category)  # take in the baseclass if possible
         attrs['icon'] = icon if icon is not None else 'function'
+        attrs['outputs'] = outputs if outputs is not None else 1
+        attrs['label'] = label if type(label) == list else []
+        attrs['output_labels'] = output_labels if type(output_labels) == list else []
+        attrs['color'] = "rgb({},{},{})".format(color[0], color[1],
+                                                color[2]) if color is not None else "rgb(231,231,174)"
 
-        try:
-            if isinstance(color, str):
-                attrs['color'] = color
-            else:
-                attrs['color'] = "rgb({},{},{})".format(color[0], color[1], color[2]) if color is not None else "rgb(231,231,174)"
-        except (IndexError, TypeError):
-            attrs['color'] = color
- 
         if join is not None:
             if isinstance(join, Join):
                 attrs['join'] = join

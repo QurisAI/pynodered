@@ -36,8 +36,23 @@
         defaults: %(defaults)s,
         icon: "%(icon)s.png",
         label: function() {
-            return "%(title)s";
-        },
+            var labels = %(label)s;
+            if (labels == []) {
+                return "%(title)s";
+            } else {
+                var s = "%(title)s";
+                try { if (this.myname != "" && this.myname != undefined) s = this.myname;}
+                catch (e) {}
+                var i;
+                if (labels.length > 0) {
+                    s += " - ";
+                }
+                for (i = 0 ; i < labels.length; i++) {
+                    s += ' ' + labels[i];
+                }
+                return s;
+            }
+        }
     });
 </script>
 
