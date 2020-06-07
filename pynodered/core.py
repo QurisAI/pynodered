@@ -1,10 +1,11 @@
 import collections
+import copy
 import json
 import os
 from pathlib import Path
 
 
-class PynodeException(Exception):
+class PynoderedException(Exception):
     pass
 
 
@@ -16,7 +17,7 @@ class NodeProperty(object):
     """a Node property. This is usually use to declare field in a class deriving from RNBaseNode.
     """
 
-    def __init__(self, title=None, type="str", value="", required=False, input_type="text", values=None, validate=None):
+    def __init__(self, title=None, type="", value="", required=False, input_type="text", values=None, validate=None):
         self.type = type
         self.value = value  # default value
         self.values = values  # values for a select to pick from
@@ -30,7 +31,7 @@ class NodeProperty(object):
         if len(args) == 0:
             args = {"name", "title", "type", "value", "title", "required", "input_type", "validate"}
 
-        return {a: getattr(self, a) for a in args}
+        return {a: getattr(self, a) for a in args if getattr(self, a) is not None}
 
 
 class FormMetaClass(type):
@@ -64,7 +65,7 @@ class RNBaseNode(metaclass=FormMetaClass):
             pass
         for property in cls.properties:
             new_validate = None
-            if property.validate == None:
+            if property.validate is None:
                 pass
             elif property.validate == 'int':
                 new_validate = "RED.validators.number()"
@@ -80,13 +81,13 @@ class RNBaseNode(metaclass=FormMetaClass):
                 # also note that double quotes will be escaped, so use single quotes only #todo fix the json encoding
                 property.validate = "@!@{}@!@".format(new_validate)
             else:
-                del property.validate
+                property.validate = None
 
         for ext in ['js', 'html']:
-            in_path = Path(__file__).parent / "templates" / ("%s.%s.in" % (cls.rednode_template, ext))
-            out_path = node_dir / ("%s.%s" % (cls.name, ext))
+            in_path = Path(__file__).parent / "templates" / ("{}.{}.in".format(cls.rednode_template, ext))
+            out_path = node_dir / ("{}.{}".format(cls.name, ext))
 
-            cls._install_template(in_path, out_path, node_dir, port)
+            cls._install_template(str(in_path), str(out_path), node_dir, port)
 
     # based on SFNR code (GPL)
     @classmethod
@@ -97,41 +98,38 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         for property in cls.properties:
             defaults[property.name] = property.as_dict('value', 'required', 'type', 'validate')
+            form += '<div class="form-row">'
+
             if property.input_type == "text":
                 form += """
-                   <div class="form-row">
                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="text" id="node-input-%(name)s" placeholder="%(title)s">
                    </div>""" % property.as_dict()
             elif property.input_type == "password":
                 form += """
-                   <div class="form-row">
                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="password" id="node-input-%(name)s" placeholder="%(title)s">
-                   </div>""" % property.as_dict()
+                   """ % property.as_dict()
             elif property.input_type == "checkbox":
                 form += """
-                   <div class="form-row">
                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="checkbox" id="node-input-%(name)s" placeholder="%(title)s">
-                   </div>""" % property.as_dict()
+                   """ % property.as_dict()
             elif property.input_type == "select":
                 form += """
-                    <div class="form-row">
                     <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                     <select id="node-input-%(name)s">
                     """ % property.as_dict()
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
-                                                                            "selected=\"selected\"" if val == property.value else "")
-
-                form += """</select>
-                    </div> """
+                                                                            'selected="selected"' if val == property.value else "")
+                form += "</select>"
             else:
                 raise Exception("Unknown input type")
+            form += "</div>"
 
         label_text = ""
-        if len(cls.output_labels) > 1:
+        if len(cls.output_labels) >= 1:
             count = 0
             for a_label in cls.output_labels:
                 label_text += "if (index === {}) return \"{}\";\n".format(count, a_label)
@@ -139,8 +137,12 @@ class RNBaseNode(metaclass=FormMetaClass):
             label_text += "else return \"\";"
 
         t = open(in_path).read()
+        # pprint([ c.__dict__ for c in cls.properties])
 
-        label_string = '[' + ",".join(["this." + a for a in cls.label]) + "]"
+        property_names = [p.name for p in cls.properties]
+
+        print(property_names)
+        label_string = '[' + ",".join(["this." + lbl for lbl in cls.label if lbl in property_names]) + "]"
 
         t = t % {'port': port,
                  'name': cls.name,
@@ -156,26 +158,41 @@ class RNBaseNode(metaclass=FormMetaClass):
                  'form': form
                  }
 
-        print("writing %s" % (out_path,))
+        print("writing {}".format(out_path))
 
         open(out_path, 'w').write(t)
 
     def run(self, msg, config, context):
-
-        self.global_data = context.get("global")
-        self.node_data = context.get("node")
-        self.flow_data = context.get("flow")
+        # Make a copy of the storage data as we want to write only the values that actually changed
+        self.global_data = copy.deepcopy(context.get("global", []))
+        self.node_data = copy.deepcopy(context.get("node", []))
+        self.flow_data = copy.deepcopy(context.get("flow", []))
 
         self.node_id = config.get('id')
         for p in self.properties:
             p.value = config.get(p.name)
         rv = self.work(msg)
+
         rv['context'] = {}
-        rv['context']['global'] = self.global_data
-        rv['context']['node'] = self.node_data
-        rv['context']['flow'] = self.flow_data
-        if not 'selected_output' in rv:
+        old_global_data = context.get("global", [])
+        old_node_data = context.get("node", [])
+        old_flow_data = context.get("flow", [])
+        rv['context']['global'] = rv['context']['global'] = rv['context']['node'] = {}
+        for x in self.global_data:
+            if old_global_data.get(x) != self.global_data.get(x):
+                rv["context"]['global'][x] = self.global_data.get(x)
+
+        for x in self.flow_data:
+            if old_flow_data.get(x) != self.flow_data.get(x):
+                rv['context']['global'][x] = self.flow_data.get(x)
+
+        for x in self.node_data:
+            if old_node_data.get(x) != self.node_data.get(x):
+                rv['context']['node'][x] = self.node_data.get(x)
+
+        if 'selected_output' not in rv:
             rv['selected_output'] = self.default_output
+
         return rv
 
 
@@ -189,14 +206,16 @@ def silent_node_waiting(f):
             return f(*args, **kwargs)
         except NodeWaiting:
             return None  # silent_node_waiting
+
     return applicator
 
 
 class Join(object):
-    """implement a join properties for class deriving from RNBaseNode. This class handles waiting until a sufficient number of messages
-with the excepted_topics arrive. While waiting the Join instance raise NodeWaiting exception which is understood by the server which then silently inform node-red
-to continue without error. Once all the message with the expected topics are arrived, the instance return the messages list in the order of expected_topics.
-
+    """implement a join properties for class deriving from RNBaseNode. This class handles waiting until a sufficient
+    number of messages with the excepted_topics arrive. While waiting the Join instance raise NodeWaiting exception
+    which is understood by the server which then silently inform node-red to continue without error. Once all the
+    message with the expected topics are arrived, the instance return the messages list in the order of
+    expected_topics.
 """
 
     def __init__(self, expected_topics):
@@ -229,16 +248,25 @@ to continue without error. Once all the message with the expected topics are arr
         del self._cache[msg['_msgid']]
 
 
-def node_red(name=None, title=None, category="default", description=None,
-             join=None, baseclass=RNBaseNode, properties=None, icon=None, color=None, outputs=1, output_labels=None,
-             label=None, default_output=0):
+def node_red(name=None, title=None, category="default", description=None, join=None, baseclass=RNBaseNode,
+             properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
-    msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload', 'topic' and 'msgid_'.
-    The node argument is an instance of the underlying class created by this decorator. It can be useful when you have a defined a common subclass
-    of RNBaseNode that provided specific features for your application (usually database connection and similar). """
+    msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload',
+    'topic' and 'msgid_'. The node argument is an instance of the underlying class created by this decorator. It can
+    be useful when you have a defined a common subclass of RNBaseNode that provided specific features for your
+    application (usually database connection and similar).
+
+    icon is a name of a file sans the .svg/.png extension
+    color is the colour code of the node specified as string e.g. #FFAABB or as a rgb(R,G,B) triplet
+    outputs is the number of outputs a node has
+    output_labels is the texts shown when hovered over the output
+    label is a list of values from node properties to show on the node itself. The names refer to the variable name
+        of the property
+    default_output is the output n no output is selected through msg['selected_output'] counting from 0
+    """
 
     def wrapper(func):
-        attrs = dict()
+        attrs = {}
         attrs['name'] = name if name is not None else func.__name__
         attrs['title'] = title if title is not None else attrs['name']
         attrs['description'] = description if description is not None else func.__doc__
@@ -249,7 +277,7 @@ def node_red(name=None, title=None, category="default", description=None,
         attrs['output_labels'] = output_labels if type(output_labels) == list else []
 
         if len(output_labels) > outputs:
-            raise PynodeException("Invalid number of labels")
+            raise PynoderedException("Invalid number of labels")
         attrs['output_labels'] = output_labels if output_labels is not None else []
         attrs['default_output'] = default_output if type(default_output) == int and 0 <= default_output < outputs else 1
 
