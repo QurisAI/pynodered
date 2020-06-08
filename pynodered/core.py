@@ -141,7 +141,6 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         property_names = [p.name for p in cls.properties]
 
-        print(property_names)
         label_string = '[' + ",".join(["this." + lbl for lbl in cls.label if lbl in property_names]) + "]"
 
         t = t % {'port': port,
@@ -276,7 +275,7 @@ def node_red(name=None, title=None, category="default", description=None, join=N
         attrs['label'] = label if type(label) == list else []
         attrs['output_labels'] = output_labels if type(output_labels) == list else []
 
-        if len(output_labels) > outputs:
+        if output_labels is not None and :len(output_labels) > outputs:
             raise PynoderedException("Invalid number of labels")
         attrs['output_labels'] = output_labels if output_labels is not None else []
         attrs['default_output'] = default_output if type(default_output) == int and 0 <= default_output < outputs else 1
