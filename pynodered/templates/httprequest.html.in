@@ -28,13 +28,17 @@
     RED.nodes.registerType('%(name)s',{
         category: '%(category)s',
         color:"%(color)s",
-        inputs:1,
+        inputs: %(inputs)s,
+        inputLabels: "%(input_label)s",
         outputs: %(outputs)s,
+        paletteLabel: "%(palette_label)s",
         outputLabels : function(index) {
             %(labels_text)s
         },
         defaults: %(defaults)s,
         icon: "%(icon)s.png",
+        labelStyle: "%(label_style)s",
+        align: "%(align)s",
         label: function() {
             var labels = %(label)s;
             if (labels == []) {

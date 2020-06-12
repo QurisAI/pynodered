@@ -53,6 +53,7 @@ class RNBaseNode(metaclass=FormMetaClass):
     The child classes must implement the work(self, msg=None) method.
     """
 
+    # label_style = None
     rednode_template = "httprequest"
 
     # based on SFNR code (GPL v3)
@@ -142,16 +143,20 @@ class RNBaseNode(metaclass=FormMetaClass):
         property_names = [p.name for p in cls.properties]
 
         label_string = '[' + ",".join(["this." + lbl for lbl in cls.label if lbl in property_names]) + "]"
-
         t = t % {'port': port,
                  'name': cls.name,
                  'title': cls.title,
                  'icon': cls.icon,
                  'color': cls.color,
                  'outputs': cls.outputs,
+                 'inputs': cls.inputs,
+                 'palette_label': cls.palette_label,
+                 'input_label': cls.input_label,
                  'category': cls.category,
                  'description': cls.description,
                  'labels_text': label_text,
+                 'label_style': cls.label_style,
+                 'align': cls.align,
                  'label': label_string,
                  'defaults': replace_quotes_on_marked_strings(json.dumps(defaults)),
                  'form': form
@@ -248,7 +253,8 @@ class Join(object):
 
 
 def node_red(name=None, title=None, category="default", description=None, join=None, baseclass=RNBaseNode,
-             properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0):
+             properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0,
+             label_style="node_label", align="left", inputs=1, input_label=None, palette_label=None):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
     msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload',
     'topic' and 'msgid_'. The node argument is an instance of the underlying class created by this decorator. It can
@@ -267,17 +273,20 @@ def node_red(name=None, title=None, category="default", description=None, join=N
     def wrapper(func):
         attrs = {}
         attrs['name'] = name if name is not None else func.__name__
+        attrs['palette_label'] = palette_label if palette_label is not None else func.__name__
         attrs['title'] = title if title is not None else attrs['name']
         attrs['description'] = description if description is not None else func.__doc__
         attrs['category'] = getattr(baseclass, "category", category)  # take in the baseclass if possible
         attrs['icon'] = icon if icon is not None else 'function'
         attrs['outputs'] = outputs if outputs is not None else 1
+        attrs['inputs'] = inputs if inputs is not None else 1
+        attrs['input_label'] = input_label if input_label is not None else ""
         attrs['label'] = label if type(label) == list else []
         attrs['output_labels'] = output_labels if type(output_labels) == list else []
-
+        attrs['label_style'] = label_style if label_style is not None else "node_label"
+        attrs['align'] = align if align is not None else "left"
         if output_labels is not None and len(output_labels) > outputs:
             raise PynoderedException("Invalid number of labels")
-        attrs['output_labels'] = output_labels if output_labels is not None else []
         attrs['default_output'] = default_output if type(default_output) == int and 0 <= default_output < outputs else 1
 
         try:

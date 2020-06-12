@@ -1,18 +1,57 @@
-
-
 from pynodered import node_red, NodeProperty
 
-
-@node_red(category="pyfuncs")
-def lower_case(node, msg):
-
-    msg['payload'] = msg['payload'].lower()
-    return msg
+fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('#node-input-number').val():this.number; return v.length > minimumLength }"
 
 
-@node_red(category="pyfuncs",
-          properties=dict(number = NodeProperty("Number", value="1")))
+@node_red(category="Slayer",
+          properties=dict(number=NodeProperty("number", value="1", validate='int'),
+                          number2=NodeProperty("Number1", value="2", validate='regexp:/^[a-z]+$/'),
+                          number3=NodeProperty("Number2", value="2", validate=fn),
+                          myname=NodeProperty("Myname", value="2")
+                          ),
+          outputs=2,
+          inputs=1,
+          input_label="Foobar",
+          default_output=1,
+          color="#BAD",
+          output_labels=["One", "Two"],
+          label=["number2"],
+          label_style="node_label_italic",
+          align="center",
+          palette_label=None,
+          )
 def repeat(node, msg):
-
+    # pprint(msg)
+    # print(node.node_id)
+    # pprint(node.node_data)
+    # pprint(node.flow_data)
+    # pprint(node.global_data)
     msg['payload'] = msg['payload'] * int(node.number.value)
+    if 'blablablabla' not in node.global_data:
+        node.global_data['blablablabla'] = "AA"
+    else:
+        node.global_data['blablablabla'] += "AA"
+    if 'blablablabla' not in node.flow_data:
+        node.flow_data['blablablabla'] = "BBB"
+    else:
+        node.flow_data['blablablabla'] += "BBB"
+    if 'blablablabla' not in node.node_data:
+        node.node_data['blablablabla'] = "CCCC"
+    else:
+        node.node_data['blablablabla'] += "CCCC"
+    msg['payload'] = "Foobar" + node.node_data['blablablabla']
+
+    # pprint(node.node_data)
+    if 'output' in node.node_data:
+        msg['selected_output'] = (node.node_data['output'] + 1) % 2
+    else:
+        msg['selected_output'] = 0
+    node.node_data['output'] = msg['selected_output']
+    # pprint(node.node_data)
     return msg
+#
+# @node_red(category="pyfuncs")
+# def lower_case(node, msg):
+#
+#     msg['payload'] = msg['payload'].lower()
+#     return msg
