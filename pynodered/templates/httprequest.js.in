@@ -72,7 +72,7 @@ module.exports = function(RED) {
                 "flow": fl,
                 "node": nd
                };
-
+                console.log(n);
                 payload = {
                     "jsonrpc": "2.0",
                     "method": "%(name)s",
@@ -115,8 +115,9 @@ module.exports = function(RED) {
                     }
                     try { msg.payload = JSON.parse(msg.payload); }
                     catch(e) { node.warn(RED._("httpin.errors.json-error")); }
-                    try {
+                    try  {
                         var context = msg.payload["result"]["context"];
+
                         for (const key in context["global"]) {
                             globalContext.set(key, context.global[key]);
                         }
@@ -126,12 +127,17 @@ module.exports = function(RED) {
                         for (const key in context["flow"]) {
                             flowContext.set(key, context.flow[key]);
                         }
-                        const output = msg.payload["result"]["selected_output"];
-                        const msgs = [];
-                        delete msg.payload["result"]["selected_output"];
                         delete msg.payload["result"]["context"];
+                     } catch (e) {
+                        console.log(e)
+                     }
+
+                    try {
+                        const msgs = [];
+                        const output = msg.payload["result"]["selected_output"];
                         msgs[output] = msg.payload["result"];
                         node.send(msgs);
+                        delete msg.payload["result"]["selected_output"];
                     } catch(e) {
                         node.send(msg.payload["result"]);
                     }

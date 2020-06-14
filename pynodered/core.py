@@ -17,7 +17,8 @@ class NodeProperty(object):
     """a Node property. This is usually use to declare field in a class deriving from RNBaseNode.
     """
 
-    def __init__(self, title=None, type="", value="", required=False, input_type="text", values=None, validate=None):
+    def __init__(self, title=None, type="", value="", required=False, input_type="text", values=None, validate=None,
+                 rows=1):
         self.type = type
         self.value = value  # default value
         self.values = values  # values for a select to pick from
@@ -25,11 +26,12 @@ class NodeProperty(object):
         self.validate = validate
         self.required = required
         self.input_type = input_type
+        self.rows = rows
 
     def as_dict(self, *args):
         self.title = self.title or self.name
         if len(args) == 0:
-            args = {"name", "title", "type", "value", "title", "required", "input_type", "validate"}
+            args = {"name", "title", "type", "value", "title", "required", "input_type", "validate", 'rows'}
 
         return {a: getattr(self, a) for a in args if getattr(self, a) is not None}
 
@@ -106,6 +108,11 @@ class RNBaseNode(metaclass=FormMetaClass):
                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="text" id="node-input-%(name)s" placeholder="%(title)s">
                    </div>""" % property.as_dict()
+            elif property.input_type == "textarea":
+                form += """
+                       <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                       <textarea id="node-input-%(name)s" placeholder="%(title)s" rows="%(rows)s">
+                       </textarea>""" % property.as_dict()
             elif property.input_type == "password":
                 form += """
                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
@@ -119,11 +126,21 @@ class RNBaseNode(metaclass=FormMetaClass):
             elif property.input_type == "select":
                 form += """
                     <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
-                    <select id="node-input-%(name)s">
+                    <select id="node-input-%(name)s" >
                     """ % property.as_dict()
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val == property.value else "")
+                form += "</select>"
+            elif property.input_type == "multi_select":
+                form += """
+                        <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                        <select id="node-input-%(name)s" multiple size="%(rows)s">
+                    """ % property.as_dict()
+                print(form)
+                for val in property.values:
+                    form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
+                                                                            'selected="selected"' if val in property.value else "")
                 form += "</select>"
             else:
                 raise Exception("Unknown input type")
