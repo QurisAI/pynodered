@@ -137,7 +137,6 @@ class RNBaseNode(metaclass=FormMetaClass):
                         <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                         <select id="node-input-%(name)s" multiple size="%(rows)s">
                     """ % property.as_dict()
-                print(form)
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val in property.value else "")
