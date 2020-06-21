@@ -24,7 +24,9 @@
 %(description)s
 </script>
 
+
 <script type="text/javascript">
+
     RED.nodes.registerType('%(name)s',{
         category: '%(category)s',
         color:"%(color)s",

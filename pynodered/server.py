@@ -3,12 +3,12 @@ import copy
 import importlib
 import inspect
 import json
+import logging
 import sys
 from pathlib import Path
 
 from flask import Flask
 from jsonrpc.backend.flask import api
-
 from pynodered.core import silent_node_waiting
 
 # https://media.readthedocs.org/pdf/json-rpc/latest/json-rpc.pdf
@@ -18,7 +18,8 @@ app.register_blueprint(api.as_blueprint())
 
 
 def node_directory(package_name):
-    return Path.home() / ".node-red" / "node_modules" / package_name  # assume this also work on MacOS and Windows...
+    return Path.home().joinpath(".node-red").joinpath("node_modules").joinpath(
+        package_name)  # assume this also work on MacOS and Windows...
 
 
 def main():
@@ -36,7 +37,7 @@ def main():
 
     package_tpl = {
         "name": "pynodered",
-        "version": "0.01",
+        "version": "0.2",
         "description": "Nodes written in Python",
         "dependencies": {"follow-redirects": "1.5.10"},
         "keywords": ["node-red"],
@@ -48,8 +49,7 @@ def main():
     registered = 0
 
     for path in args.filenames:
-
-        print("Path: ", path)
+        logging.info("Path: {}".format(path))
 
         # import the module by file or by name
         if path.endswith(".py"):
@@ -70,7 +70,8 @@ def main():
         if hasattr(module, "package"):
             if not isinstance(module.package, dict) or 'name' not in module.package:
                 raise Exception(
-                    "the 'package' attribute in the module must be a dict defining at least the 'name' of the module in Node-RED")
+                    "the 'package' attribute in the module must be a dict defining at least the 'name' of the module "
+                    "in Node-RED")
             package_name = module.package['name']
             if package_name not in packages:
                 packages[package_name] = copy.deepcopy(package_tpl)  # load default values
@@ -86,10 +87,10 @@ def main():
 
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if hasattr(obj, "install") and hasattr(obj, "work") and hasattr(obj, "run") and hasattr(obj, "name"):
-                print(f"From {name} register {obj.name}")
+                logging.info("From {} register {}".format(name, obj.name))
                 if not args.noinstall:
                     obj.install(node_dir, args.port)
-                    print("Install %s" % name)
+                    logging.info("Install {}".format(name))
                     packages[package_name]["node-red"]["nodes"][obj.name] = obj.name + '.js'
 
                 inst = obj()
@@ -114,7 +115,7 @@ def main():
     #     # and rules that require parameters
     #     print(rule.methods,rule.endpoint)
 
-    app.run(host='127.0.0.1', port=args.port)  # , debug=True)
+    app.run(host='127.0.0.1', port=args.port, debug=True)
 
 
 if __name__ == '__main__':

@@ -17,154 +17,178 @@
  **/
 
 module.exports = function(RED) {
-    "use strict";
-    var http = require("follow-redirects").http;
-    var urllib = require("url");
-    var querystring = require("querystring");
+	"use strict";
+	var http = require("follow-redirects").http;
+	var urllib = require("url");
+	var querystring = require("querystring");
 
-    function HTTPRequest(n) {
-        RED.nodes.createNode(this, n);
-        var node = this;
-        var nodeUrl = "http://localhost:%(port)s/";   // %(name)s";
-        if (RED.settings.httpRequestTimeout) { this.reqTimeout = parseInt(RED.settings.httpRequestTimeout) || 120000; }
-        else { this.reqTimeout = 120000; }
+	function HTTPRequest(n) {
+		RED.nodes.createNode(this, n);
+		var node = this;
 
-        this.on("input",function(msg) {
-            var preRequestTimestamp = process.hrtime();
-            node.status({fill:"blue",shape:"dot",text:"httpin.status.requesting"});
-            var url = nodeUrl;
+		var nodeUrl = "http://localhost:%(port)s/";   // %(name)s";
+		if (RED.settings.httpRequestTimeout) { this.reqTimeout = parseInt(RED.settings.httpRequestTimeout) || 120000; }
+		else { this.reqTimeout = 120000; }
 
-            var method = "POST";
-            var opts = urllib.parse(url);
-            opts.method = method;
-            opts.headers = {};
-            if (msg.headers) {
-                for (var v in msg.headers) {
-                    if (msg.headers.hasOwnProperty(v)) {
-                        var name = v.toLowerCase();
-                        if (name !== "content-type" && name !== "content-length") {
-                            // only normalise the known headers used later in this
-                            // function. Otherwise leave them alone.
-                            name = v;
-                        }
-                        opts.headers[name] = msg.headers[v];
-                    }
-                }
-            }
-            if (this.credentials && this.credentials.user) {
-                opts.auth = this.credentials.user+":"+(this.credentials.password||"");
-            }
-            var payload = null;
+		this.on("input",function(msg) {
+			var preRequestTimestamp = process.hrtime();
+			node.status({fill:"blue",shape:"dot",text:"httpin.status.requesting"});
+			var url = nodeUrl;
 
-            if (msg.payload && (method == "POST" || method == "PUT" || method == "PATCH" ) ) {
-               var nodeContext = this.context();
-               var flowContext = this.context().flow;
-               var globalContext = this.context().global;
-               var gl_keys = globalContext.keys();
-               var fl_keys = flowContext.keys();
-               var nd_keys = nodeContext.keys();
-               var glob = {}, fl = {}, nd = {};
-               gl_keys.map(function(e, i) { glob[e] = globalContext.get(e)});
-               fl_keys.map(function(e, i) { fl[e] = flowContext.get(e)});
-               nd_keys.map(function(e, i) { nd[e] = nodeContext.get(e)});
-               var context = {
-                "global": glob,
-                "flow": fl,
-                "node": nd
-               };
-                console.log(n);
-                payload = {
-                    "jsonrpc": "2.0",
-                    "method": "%(name)s",
-                    "params": { "msg": msg, "config": n, "context": context
-                    },
-                    "id": "1"}
-                payload = JSON.stringify(payload);
-                if (opts.headers['content-type'] == null) {
-                    opts.headers['content-type'] = "application/json";
-                    }
+			var method = "POST";
+			var opts = urllib.parse(url);
+			opts.method = method;
+			opts.headers = {};
+			if (msg.headers) {
+				for (var v in msg.headers) {
+					if (msg.headers.hasOwnProperty(v)) {
+						var name = v.toLowerCase();
+						if (name !== "content-type" && name !== "content-length") {
+							// only normalise the known headers used later in this
+							// function. Otherwise leave them alone.
+							name = v;
+						}
+						opts.headers[name] = msg.headers[v];
+					}
+				}
+			}
+			if (this.credentials && this.credentials.user) {
+				opts.auth = this.credentials.user+":"+(this.credentials.password||"");
+			}
+			var payload = null;
 
-                if (opts.headers['content-length'] == null) {
-                    if (Buffer.isBuffer(payload)) {
-                        opts.headers['content-length'] = payload.length;
-                    } else {
-                        opts.headers['content-length'] = Buffer.byteLength(payload);
-                    }
-                }
-            }
-            var urltotest = url;
-            var req = http.request(opts,function(res) {
-                res.setEncoding('utf8');
-                msg.statusCode = res.statusCode;
-                msg.headers = res.headers;
-                msg.payload = "";
-                // msg.url = url;   // revert when warning above finally removed
-                res.on('data',function(chunk) {
-                    msg.payload += chunk;
-                });
-                res.on('end',function() {
-                    if (node.metric()) {
-                        // Calculate request time
-                        var diff = process.hrtime(preRequestTimestamp);
-                        var ms = diff[0] * 1e3 + diff[1] * 1e-6;
-                        var metricRequestDurationMillis = ms.toFixed(3);
-                        node.metric("duration.millis", msg, metricRequestDurationMillis);
-                        if (res.client && res.client.bytesRead) {
-                            node.metric("size.bytes", msg, res.client.bytesRead);
-                        }
-                    }
-                    try { msg.payload = JSON.parse(msg.payload); }
-                    catch(e) { node.warn(RED._("httpin.errors.json-error")); }
-                    try  {
-                        var context = msg.payload["result"]["context"];
+			if (msg.payload && (method == "POST" || method == "PUT" || method == "PATCH" ) ) {
+				var nodeContext = node.context();
+				var flowContext = node.context().flow;
+				var globalContext = node.context().global;
+				var gl_keys = globalContext.keys();
+				var fl_keys = flowContext.keys();
+				var nd_keys = nodeContext.keys();
+				var glob = {}, fl = {}, nd = {};
+				gl_keys.map(function(e, i) { glob[e] = globalContext.get(e)});
+				fl_keys.map(function(e, i) { fl[e] = flowContext.get(e)});
+				nd_keys.map(function(e, i) { nd[e] = nodeContext.get(e)});
+				var context = {
+					"global": glob,
+					"flow": fl,
+					"node": nd
+				};
+				payload = {
+					"jsonrpc": "2.0",
+					"method": "%(name)s",
+					"params": {
+						"msg": msg,
+						"config": n,
+						"context": context
+					},
+					"id": "1"
+				};
+				payload = JSON.stringify(payload);
+				if (opts.headers['content-type'] == null) {
+					opts.headers['content-type'] = "application/json";
+				}
 
-                        for (const key in context["global"]) {
-                            globalContext.set(key, context.global[key]);
-                        }
-                        for (const key in context["node"]) {
-                            nodeContext.set(key, context.node[key]);
-                        }
-                        for (const key in context["flow"]) {
-                            flowContext.set(key, context.flow[key]);
-                        }
-                        delete msg.payload["result"]["context"];
-                     } catch (e) {
-                        console.log(e)
-                     }
-
+				if (opts.headers['content-length'] == null) {
+					if (Buffer.isBuffer(payload)) {
+						opts.headers['content-length'] = payload.length;
+					} else {
+						opts.headers['content-length'] = Buffer.byteLength(payload);
+					}
+				}
+			}
+			var urltotest = url;
+			var req = http.request(opts,function(res) {
+				res.setEncoding('utf8');
+				msg.statusCode = res.statusCode;
+				msg.headers = res.headers;
+				msg.payload = "";
+				// msg.url = url;   // revert when warning above finally removed
+				res.on('data',function(chunk) {
+					msg.payload += chunk;
+				});
+				res.on('end',function() {
+					if (node.metric()) {
+						// Calculate request time
+						var diff = process.hrtime(preRequestTimestamp);
+						var ms = diff[0] * 1e3 + diff[1] * 1e-6;
+						var metricRequestDurationMillis = ms.toFixed(3);
+						node.metric("duration.millis", msg, metricRequestDurationMillis);
+						if (res.client && res.client.bytesRead) {
+							node.metric("size.bytes", msg, res.client.bytesRead);
+						}
+					}
+					try { msg.payload = JSON.parse(msg.payload); }
+					catch(e) { node.warn(RED._("httpin.errors.json-error")); }
+					try {
+						var context = msg.payload["result"]["context"];
+						for (const key in context["global"]) { globalContext.set(key, context.global[key]); }
+						for (const key in context["node"]) { nodeContext.set(key, context.node[key]); }
+						for (const key in context["flow"]) { flowContext.set(key, context.flow[key]); }
+						delete msg.payload["result"]["context"];
+					} catch (e) {
+						console.log(e);
+					}
+					var is_sent = false;
+                    var msgs = [];
+                    // we first try if outputs is part of the results payload. Otherwise we check selected_output,
+                    // which should always be there
                     try {
-                        const msgs = [];
-                        const output = msg.payload["result"]["selected_output"];
-                        msgs[output] = msg.payload["result"];
-                        node.send(msgs);
-                        delete msg.payload["result"]["selected_output"];
-                    } catch(e) {
-                        node.send(msg.payload["result"]);
-                    }
+                        var outputs = msg.payload['result']['outputs']
+                        for (const key in outputs) {
+                            var k = parseInt(key);
+                            if (k == NaN) { continue; }
+                            msgs[k] = outputs[key];
+                        }
 
-                    node.status({});
-                });
-            });
-            req.setTimeout(node.reqTimeout, function() {
-                node.error(RED._("common.notification.errors.no-response"),msg);
-                setTimeout(function() {
-                    node.status({fill:"red",shape:"ring",text:"common.notification.errors.no-response"});
-                },10);
-                req.abort();
-            });
-            req.on('error',function(err) {
-                node.error(err,msg);
-                msg.payload = err.toString() + " : " + url;
-                msg.statusCode = err.code;
-                node.send(msg);
-                node.status({fill:"red",shape:"ring",text:err.code});
-            });
-            if (payload) {
-                req.write(payload);
-            }
-            req.end();
-        });
-    }
+                        if (msgs.length > 0 ) {
+						    node.send(msgs);
+						    is_sent = true;
+                        }
+                    } catch(e) { }
+                    if (! is_sent) {
+                        try {
+                            const output = msg.payload["result"]["selected_output"];
+                            msgs[output] = msg.payload["result"];
+                            try { delete msg.payload["result"]["selected_output"]; } catch(e) {}
+                            node.send(msgs);
+                        } catch(e) {
+                            node.send(msg.payload["result"]);
+                        }
+					}
+					try {
+					    var status = msg.payload['result']['status'];
+					    var fill, shape, text;
+    					try { fill = status['fill']; } catch (e) { fill = undefined ;}
+    					try { shape = status['shape']; } catch (e) { shape = undefined ;}
+    					try { text = status['text']; } catch (e) { text = undefined ;}
+                        node.status({fill: fill,shape: shape,text:text});
+					} catch(e) {
+    					node.status({});
+    				}
+				});
+			});
+			req.setTimeout(node.reqTimeout, function() {
+				node.error(RED._("common.notification.errors.no-response"),msg);
+				setTimeout(function() {
+					node.status({fill:"red",shape:"ring",text:"common.notification.errors.no-response"});
+				},10);
+				req.abort();
+			});
+			req.on('error',function(err) {
+				node.error(err,msg);
+				msg.payload = err.toString() + " : " + url;
+				msg.statusCode = err.code;
+				node.send(msg);
+				node.status({fill:"red",shape:"ring",text:err.code});
+			});
+			if (payload) {
+				req.write(payload);
+			}
 
-    RED.nodes.registerType("%(name)s",HTTPRequest);
+			req.end();
+
+		});
+	}
+
+	RED.nodes.registerType("%(name)s",HTTPRequest);
 }

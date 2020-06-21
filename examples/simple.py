@@ -1,15 +1,22 @@
+from pprint import pprint
+
 from pynodered import node_red, NodeProperty
 
-fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('#node-input-number').val():this.number; return v.length > minimumLength }"
+fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('#node-input-number').val(" \
+     "):this.number; return v.length > minimumLength } "
 
 
 @node_red(category="Slayer",
           properties=dict(number=NodeProperty("number", value="1", validate='int'),
                           number2=NodeProperty("Number1", value="2", validate='regexp:/^[a-z]+$/'),
                           number3=NodeProperty("Number2", value="2", validate=fn),
-                          myname=NodeProperty("Myname", value="2")
+                          myname=NodeProperty("Myname", value="2"),
+                          script=NodeProperty("Script", value="Yoo", input_type="textarea", rows=10),
+                          ms=NodeProperty("MS", value="1", input_type="multi_select", values=['1', '2', '3', "4", "5"],
+                                          rows=1),
                           ),
-          outputs=2,
+          outputs=4,
+          title="My Name",
           inputs=1,
           input_label="Foobar",
           default_output=1,
@@ -26,6 +33,30 @@ def repeat(node, msg):
     # pprint(node.node_data)
     # pprint(node.flow_data)
     # pprint(node.global_data)
+    exec(node.script.value, globals(), locals())
+    # msg['dashboard']['value'] = 'konijntje'
+    # msg['dashboard']['type'] = 'text'
+    if 'hits' in node.global_data:
+        node.global_data['hits'] += 1
+    else:
+        node.global_data['hits'] = 1
+    out = {}
+
+    x = {'payload': 1}
+
+    out['outputs'] = {}
+    out['outputs'][2] = msg
+    out['outputs'][0] = msg
+    out['outputs'][3] = x
+    out['status'] = {
+        "fill": "red",
+        "shape": "ring",
+        "text": "Blab bla foobal"
+    }
+    # msg['selected_output'] = 2
+    # msg['payload'] = 'foo'
+
+    return out
     msg['payload'] = msg['payload'] * int(node.number.value)
     if 'blablablabla' not in node.global_data:
         node.global_data['blablablabla'] = "AA"
@@ -47,6 +78,7 @@ def repeat(node, msg):
     else:
         msg['selected_output'] = 0
     node.node_data['output'] = msg['selected_output']
+    pprint(msg)
     # pprint(node.node_data)
     return msg
 #

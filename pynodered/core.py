@@ -1,6 +1,7 @@
 import collections
 import copy
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -55,7 +56,6 @@ class RNBaseNode(metaclass=FormMetaClass):
     The child classes must implement the work(self, msg=None) method.
     """
 
-    # label_style = None
     rednode_template = "httprequest"
 
     # based on SFNR code (GPL v3)
@@ -95,55 +95,49 @@ class RNBaseNode(metaclass=FormMetaClass):
     # based on SFNR code (GPL)
     @classmethod
     def _install_template(cls, in_path, out_path, node_dir, port):
-
         defaults = {}
         form = ""
 
         for property in cls.properties:
             defaults[property.name] = property.as_dict('value', 'required', 'type', 'validate')
-            form += '<div class="form-row">'
-
+            form += '<div class="form-row">\
+                     <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>'
             if property.input_type == "text":
                 form += """
-                   <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="text" id="node-input-%(name)s" placeholder="%(title)s">
-                   </div>""" % property.as_dict()
+                   </div>
+                   """ % property.as_dict()
             elif property.input_type == "textarea":
                 form += """
-                       <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                        <textarea id="node-input-%(name)s" placeholder="%(title)s" rows="%(rows)s">
                        </textarea>""" % property.as_dict()
             elif property.input_type == "password":
                 form += """
-                   <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="password" id="node-input-%(name)s" placeholder="%(title)s">
                    """ % property.as_dict()
             elif property.input_type == "checkbox":
                 form += """
-                   <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="checkbox" id="node-input-%(name)s" placeholder="%(title)s">
                    """ % property.as_dict()
             elif property.input_type == "select":
                 form += """
-                    <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
-                    <select id="node-input-%(name)s" >
+                    <select id="node-input-%(name)s">
                     """ % property.as_dict()
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val == property.value else "")
-                form += "</select>"
+                form += "</select>\n"
             elif property.input_type == "multi_select":
                 form += """
-                        <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                         <select id="node-input-%(name)s" multiple size="%(rows)s">
                     """ % property.as_dict()
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val in property.value else "")
-                form += "</select>"
+                form += "</select>\n"
             else:
                 raise Exception("Unknown input type")
-            form += "</div>"
+            form += "</div>\n"
 
         label_text = ""
         if len(cls.output_labels) >= 1:
@@ -154,7 +148,6 @@ class RNBaseNode(metaclass=FormMetaClass):
             label_text += "else return \"\";"
 
         t = open(in_path).read()
-        # pprint([ c.__dict__ for c in cls.properties])
 
         property_names = [p.name for p in cls.properties]
 
@@ -178,7 +171,7 @@ class RNBaseNode(metaclass=FormMetaClass):
                  'form': form
                  }
 
-        print("writing {}".format(out_path))
+        logging.info("writing {}".format(out_path))
 
         open(out_path, 'w').write(t)
 
@@ -187,7 +180,6 @@ class RNBaseNode(metaclass=FormMetaClass):
         self.global_data = copy.deepcopy(context.get("global", []))
         self.node_data = copy.deepcopy(context.get("node", []))
         self.flow_data = copy.deepcopy(context.get("flow", []))
-
         self.node_id = config.get('id')
         for p in self.properties:
             p.value = config.get(p.name)
@@ -212,6 +204,13 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         if 'selected_output' not in rv:
             rv['selected_output'] = self.default_output
+        elif int(rv['selected_output']) >= int(self.outputs) or int(rv['selected_output']) < 0:
+            raise ValueError("Selected output not valid")
+
+        if 'outputs' in rv:
+            for x in rv['outputs']:
+                if int(x) >= int(self.outputs) or int(x) < 0:
+                    raise ValueError("Selected output not valid")
 
         return rv
 
@@ -283,7 +282,15 @@ def node_red(name=None, title=None, category="default", description=None, join=N
     output_labels is the texts shown when hovered over the output
     label is a list of values from node properties to show on the node itself. The names refer to the variable name
         of the property
-    default_output is the output n no output is selected through msg['selected_output'] counting from 0
+    default_output is the output if no output is selected through msg['selected_output'] counting from 0
+
+    outputs can be selected in three was. returning the msg with the (altered) payload will send it on the default
+    output setting msg['selected_output'] will send the msg on the output selected
+    msgs can be sent on multiple outputs by defining a dictionary with an outputs entry and an numerical index to which
+    the message is assigned to be sent.
+       e.g. output['ouptuts'][1] = "message 1" ;  output['ouptuts'][3] = "message 3"
+        output numbers start counting from 0
+
     """
 
     def wrapper(func):
@@ -294,8 +301,8 @@ def node_red(name=None, title=None, category="default", description=None, join=N
         attrs['description'] = description if description is not None else func.__doc__
         attrs['category'] = getattr(baseclass, "category", category)  # take in the baseclass if possible
         attrs['icon'] = icon if icon is not None else 'function'
-        attrs['outputs'] = outputs if outputs is not None else 1
-        attrs['inputs'] = inputs if inputs is not None else 1
+        attrs['outputs'] = outputs if outputs is not None and int(outputs) >= 0 else 1
+        attrs['inputs'] = inputs if inputs in [0, 1] else 1
         attrs['input_label'] = input_label if input_label is not None else ""
         attrs['label'] = label if type(label) == list else []
         attrs['output_labels'] = output_labels if type(output_labels) == list else []
