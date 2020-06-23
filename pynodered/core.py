@@ -5,6 +5,9 @@ import logging
 import os
 from pathlib import Path
 
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 class PynoderedException(Exception):
     pass
@@ -172,7 +175,6 @@ class RNBaseNode(metaclass=FormMetaClass):
                  }
 
         logging.info("writing {}".format(out_path))
-
         open(out_path, 'w').write(t)
 
     def run(self, msg, config, context):
@@ -181,9 +183,14 @@ class RNBaseNode(metaclass=FormMetaClass):
         self.node_data = copy.deepcopy(context.get("node", []))
         self.flow_data = copy.deepcopy(context.get("flow", []))
         self.node_id = config.get('id')
+        self.status = None
         for p in self.properties:
             p.value = config.get(p.name)
+        if '_trace' not in msg['payload']:
+            msg['payload']['_trace'] = []
+
         rv = self.work(msg)
+        msg['payload']['_trace'].append([self.node_id, self.name])
 
         rv['context'] = {}
         old_global_data = context.get("global", [])
@@ -205,12 +212,12 @@ class RNBaseNode(metaclass=FormMetaClass):
         if 'selected_output' not in rv:
             rv['selected_output'] = self.default_output
         elif int(rv['selected_output']) >= int(self.outputs) or int(rv['selected_output']) < 0:
-            raise ValueError("Selected output not valid")
+            raise ValueError("Selected output not valid {} {}".format(rv['selected_output'], self.outputs))
 
         if 'outputs' in rv:
             for x in rv['outputs']:
                 if int(x) >= int(self.outputs) or int(x) < 0:
-                    raise ValueError("Selected output not valid")
+                    raise ValueError("Selected output not valid {} {}".format(x, self.outputs))
 
         return rv
 
