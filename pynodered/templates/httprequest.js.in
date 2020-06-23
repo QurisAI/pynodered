@@ -157,11 +157,16 @@ module.exports = function(RED) {
 					}
 					try {
 					    var status = msg.payload['result']['status'];
-					    var fill, shape, text;
+					    try { delete msg.payload['result']['status']; } catch (e) {}
+					    var fill, shape, text, timeout;
     					try { fill = status['fill']; } catch (e) { fill = undefined ;}
     					try { shape = status['shape']; } catch (e) { shape = undefined ;}
     					try { text = status['text']; } catch (e) { text = undefined ;}
+    					try { timeout = status['timeout']; } catch (e) { timeout = 10 ;} // in seconds
                         node.status({fill: fill,shape: shape,text:text});
+    					setTimeout(function() {
+                            node.status({});
+                        },timeout*1000); // in milliseconds
 					} catch(e) {
     					node.status({});
     				}
