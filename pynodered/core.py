@@ -61,6 +61,50 @@ class RNBaseNode(metaclass=FormMetaClass):
 
     rednode_template = "httprequest"
 
+    def __init__(self):
+        self._status = None
+        self._selected_output = 0
+        self._outputs = {}
+        self.global_data = None
+        self.node_data = None
+        self.flow_data = None
+        self.node_id = None
+
+    def re_init(self):
+        self._clear_outputs()
+        self._clear_status()
+        self._clear_selected_output()
+
+    def set_status(self, fill="grey", shape="dot", text="", timeout=10):
+        self._status = {'fill': fill, 'shape': shape, 'text': text, 'timeout': timeout}
+
+    def _clear_status(self):
+        self._status = None
+
+    def select_output(self, output=None):
+        self._clear_outputs()
+        if output is None:
+            self._selected_output = self.default_output
+        elif not (0 <= int(output) < int(self.outputs)):
+            raise ValueError("Selected output not valid")
+        else:
+            self._selected_output = output
+
+    def set_outputs(self, output, msg=None):
+        if not (0 <= int(output) < int(self.outputs)):
+            raise ValueError("Selected output not valid")
+        self._clear_selected_output()
+        if msg is None:
+            del self._outputs[int(output)]
+        else:
+            self._outputs[int(output)] = msg
+
+    def _clear_outputs(self):
+        self._outputs = {}
+
+    def _clear_selected_output(self):
+        self._select_output = None
+
     # based on SFNR code (GPL v3)
     @classmethod
     def install(cls, node_dir, port):
@@ -175,9 +219,14 @@ class RNBaseNode(metaclass=FormMetaClass):
                  }
 
         logging.info("writing {}".format(out_path))
+
         open(out_path, 'w').write(t)
 
     def run(self, msg, config, context):
+        self.re_init()
+        pprint(msg)
+        pprint(config)
+        pprint(context)
         # Make a copy of the storage data as we want to write only the values that actually changed
         self.global_data = copy.deepcopy(context.get("global", []))
         self.node_data = copy.deepcopy(context.get("node", []))
@@ -209,15 +258,12 @@ class RNBaseNode(metaclass=FormMetaClass):
             if old_node_data.get(x) != self.node_data.get(x):
                 rv['context']['node'][x] = self.node_data.get(x)
 
-        if 'selected_output' not in rv:
-            rv['selected_output'] = self.default_output
-        elif int(rv['selected_output']) >= int(self.outputs) or int(rv['selected_output']) < 0:
-            raise ValueError("Selected output not valid {} {}".format(rv['selected_output'], self.outputs))
-
-        if 'outputs' in rv:
-            for x in rv['outputs']:
-                if int(x) >= int(self.outputs) or int(x) < 0:
-                    raise ValueError("Selected output not valid {} {}".format(x, self.outputs))
+        if self._selected_output is not None:
+            rv['selected_output'] = self._selected_output
+        elif self._outputs is not {}:
+            rv['outputs'] = self._outputs
+        if self._status:
+            rv['status'] = self._status
 
         return rv
 

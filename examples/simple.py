@@ -43,18 +43,18 @@ def repeat(node, msg):
     out = {}
 
     x = {'payload': 1}
+    y = {'payload': 2}
+    z = {'payload': 3}
+    node.select_output(2)
 
-    out['outputs'] = {}
-    out['outputs'][2] = msg
-    out['outputs'][0] = msg
-    out['outputs'][3] = x
-    out['status'] = {
-        "fill": "red",
-        "shape": "ring",
-        "text": "Blab bla foobal"
-    }
+    # out['outputs'] = {}
+    # out['outputs'][2] = y
+    # out['outputs'][1] = z
+    # out['outputs'][3] = x
+    node.set_status('red', 'ring', 'blablabla aap', 10)
+    # pprint(node.__dict__)
     # msg['selected_output'] = 2
-    # msg['payload'] = 'foo'
+    out['payload'] = 'foo'
 
     return out
     msg['payload'] = msg['payload'] * int(node.number.value)
