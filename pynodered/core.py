@@ -9,6 +9,7 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 class PynoderedException(Exception):
     pass
 
@@ -35,7 +36,7 @@ class NodeProperty(object):
     def as_dict(self, *args):
         self.title = self.title or self.name
         if len(args) == 0:
-            args = {"name", "title", "type", "value", "title", "required", "input_type", "validate", 'rows'}
+            args = {"name", "title", "type", "value", "title", "required", "input_type", "validate", "rows"}
 
         return {a: getattr(self, a) for a in args if getattr(self, a) is not None}
 
@@ -136,7 +137,6 @@ class RNBaseNode(metaclass=FormMetaClass):
         for ext in ['js', 'html']:
             in_path = Path(__file__).parent / "templates" / ("{}.{}.in".format(cls.rednode_template, ext))
             out_path = node_dir / ("{}.{}".format(cls.name, ext))
-
             cls._install_template(str(in_path), str(out_path), node_dir, port)
 
     # based on SFNR code (GPL)
@@ -194,52 +194,52 @@ class RNBaseNode(metaclass=FormMetaClass):
                 count += 1
             label_text += "else return \"\";"
 
-        t = open(in_path).read()
+        template = open(in_path).read()
 
         property_names = [p.name for p in cls.properties]
 
         label_string = '[' + ",".join(["this." + lbl for lbl in cls.label if lbl in property_names]) + "]"
-        t = t % {'port': port,
-                 'name': cls.name,
-                 'title': cls.title,
-                 'icon': cls.icon,
-                 'color': cls.color,
-                 'outputs': cls.outputs,
-                 'inputs': cls.inputs,
-                 'palette_label': cls.palette_label,
-                 'input_label': cls.input_label,
-                 'category': cls.category,
-                 'description': cls.description,
-                 'labels_text': label_text,
-                 'label_style': cls.label_style,
-                 'align': cls.align,
-                 'label': label_string,
-                 'defaults': replace_quotes_on_marked_strings(json.dumps(defaults)),
-                 'form': form
-                 }
+        template %= {
+            'port': port,
+            'name': cls.name,
+            'title': cls.title,
+            'icon': cls.icon,
+            'color': cls.color,
+            'outputs': cls.outputs,
+            'inputs': cls.inputs,
+            'palette_label': cls.palette_label,
+            'input_label': cls.input_label,
+            'category': cls.category,
+            'description': cls.description,
+            'labels_text': label_text,
+            'label_style': cls.label_style,
+            'align': cls.align,
+            'label': label_string,
+            'defaults': replace_quotes_on_marked_strings(json.dumps(defaults)),
+            'form': form
+        }
 
         logging.info("writing {}".format(out_path))
-
-        open(out_path, 'w').write(t)
+        open(out_path, 'w').write(template)
 
     def run(self, msg, config, context):
         self.re_init()
-        pprint(msg)
-        pprint(config)
-        pprint(context)
+        # pprint(msg)
+        # pprint(config)
+        # pprint(context)
         # Make a copy of the storage data as we want to write only the values that actually changed
         self.global_data = copy.deepcopy(context.get("global", []))
         self.node_data = copy.deepcopy(context.get("node", []))
         self.flow_data = copy.deepcopy(context.get("flow", []))
         self.node_id = config.get('id')
-        self.status = None
         for p in self.properties:
             p.value = config.get(p.name)
-        if '_trace' not in msg['payload']:
+        if self.enable_trace and '_trace' not in msg['payload']:
             msg['payload']['_trace'] = []
 
         rv = self.work(msg)
-        msg['payload']['_trace'].append([self.node_id, self.name])
+        if self.enable_trace:
+            msg['payload']['_trace'].append([self.node_id, self.name])
 
         rv['context'] = {}
         old_global_data = context.get("global", [])
@@ -317,12 +317,12 @@ class Join(object):
         return [msgs[topic] for topic in self.expected_topics]
 
     def clean(self, msg):
-        del self._cache[msg['_msgid']]
+        del self.mem[msg['_msgid']]
 
 
 def node_red(name=None, title=None, category="default", description=None, join=None, baseclass=RNBaseNode,
              properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0,
-             label_style="node_label", align="left", inputs=1, input_label=None, palette_label=None):
+             label_style="node_label", align="left", inputs=1, input_label=None, palette_label=None, enable_trace=True):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
     msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload',
     'topic' and 'msgid_'. The node argument is an instance of the underlying class created by this decorator. It can
@@ -361,6 +361,7 @@ def node_red(name=None, title=None, category="default", description=None, join=N
         attrs['output_labels'] = output_labels if type(output_labels) == list else []
         attrs['label_style'] = label_style if label_style is not None else "node_label"
         attrs['align'] = align if align is not None else "left"
+        attrs['enable_trace'] = bool(enable_trace)
         if output_labels is not None and len(output_labels) > outputs:
             raise PynoderedException("Invalid number of labels")
         attrs['default_output'] = default_output if type(default_output) == int and 0 <= default_output < outputs else 1

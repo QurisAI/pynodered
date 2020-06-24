@@ -18,14 +18,15 @@ app.register_blueprint(api.as_blueprint())
 
 
 def node_directory(package_name):
-    return Path.home().joinpath(".node-red").joinpath("node_modules").joinpath(
-        package_name)  # assume this also work on MacOS and Windows...
+    # assume this also work on MacOS and Windows...
+    return Path.home().joinpath(".node-red").joinpath("node_modules").joinpath(package_name)
 
 
 def main():
     parser = argparse.ArgumentParser(prog='pynodered')
     parser.add_argument('--noinstall', action="store_true",
-                        help="do not install javascript files to save startup time. It is only necessary to install the files once or whenever a python function change")
+                        help="do not install javascript files to save startup time. It is only necessary to install "
+                             "the files once or whenever a python function change")
     parser.add_argument('--port',
                         help="port to use by Flask to run the Python server handling the request from Node-RED",
                         default=5051)
