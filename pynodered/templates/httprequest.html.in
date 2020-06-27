@@ -37,6 +37,7 @@
         outputLabels : function(index) {
             %(labels_text)s
         },
+        button: %(button)s,
         defaults: %(defaults)s,
         icon: "%(icon)s.png",
         labelStyle: "%(label_style)s",

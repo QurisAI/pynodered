@@ -6,6 +6,21 @@ fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('
      "):this.number; return v.length > minimumLength } "
 
 
+def tf(msg):
+    return [{"payload": msg['payload']}]
+
+
+@node_red(category="Slayer",
+          inputs=0,
+          button=True,
+          name="test",
+          button_data="{'foo': 'foobar'}",
+          outputs=1)
+def test(node, msg):
+    node.set_output(0, msg['payload'], 'foo')
+    return msg
+
+
 @node_red(category="Slayer",
           properties=dict(number=NodeProperty("number", value="1", validate='int'),
                           number2=NodeProperty("Number1", value="2", validate='regexp:/^[a-z]+$/'),
@@ -26,6 +41,9 @@ fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('
           label_style="node_label_italic",
           align="center",
           palette_label=None,
+          enable_trace=True,
+          trace_function=tf,
+          button=True
           )
 def repeat(node, msg):
     # pprint(msg)
@@ -36,25 +54,33 @@ def repeat(node, msg):
     exec(node.script.value, globals(), locals())
     # msg['dashboard']['value'] = 'konijntje'
     # msg['dashboard']['type'] = 'text'
+    # print(node.payload)
+    # pprint(node.__dict__)
+    # print(node.topic)
     if 'hits' in node.global_data:
         node.global_data['hits'] += 1
     else:
         node.global_data['hits'] = 1
+    node.global_data['shit'] = 'AOeuao'
+    # print(node.global_data)
+    node.flow_data['hits'] = node.global_data['hits'] % 5
+    node.global_data['hits'] += 1
+    msg['payload'] += " " + str(node.global_data['hits'])
     out = {}
+    # pprint(msg['_trace'])
+    x = 1
+    y = 2
+    z = node.global_data['hits']
+    # node.select_output(2)
+    node.set_output(1, z, 'foo')
+    node.set_output(2, y, 'bar')
+    node.set_output(3, x, 'baz')
 
-    x = {'payload': 1}
-    y = {'payload': 2}
-    z = {'payload': 3}
-    node.select_output(2)
-
-    # out['outputs'] = {}
-    # out['outputs'][2] = y
-    # out['outputs'][1] = z
-    # out['outputs'][3] = x
-    node.set_status('red', 'ring', 'blablabla aap', 10)
+    print(node.msg_id)
+    # node.set_status('red', 'ring', 'blablabla aap', 10)
     # pprint(node.__dict__)
     # msg['selected_output'] = 2
-    out['payload'] = 'foo'
+    # out['payload'] = 'foo'
 
     return out
     msg['payload'] = msg['payload'] * int(node.number.value)

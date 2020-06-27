@@ -142,6 +142,7 @@ module.exports = function(RED) {
 
                         if (msgs.length > 0 ) {
 						    node.send(msgs);
+                            node.warn(msgs);
 						    is_sent = true;
                         }
                     } catch(e) { }
@@ -151,6 +152,7 @@ module.exports = function(RED) {
                             msgs[output] = msg.payload["result"];
                             try { delete msg.payload["result"]["selected_output"]; } catch(e) {}
                             node.send(msgs);
+                            node.warn(msgs);
                         } catch(e) {
                             node.send(msg.payload["result"]);
                         }
@@ -194,6 +196,23 @@ module.exports = function(RED) {
 
 		});
 	}
-
+	if ( %(button_bool)s ) {
+    RED.httpAdmin.post("/%(name)s/:id", RED.auth.needsPermission("%(name)s.write"), function(req, res) {
+        var node = RED.nodes.getNode(req.params.id);
+        if (node != null) {
+            try {
+                node.emit("input", {payload: %(button_data)s});
+                res.sendStatus(200);
+            }
+            catch (err) {
+                res.sendStatus(500);
+                node.error("Inject failed:" + err);
+            }
+        }
+        else {
+            res.sendStatus(404);
+        }
+    });
+    }
 	RED.nodes.registerType("%(name)s",HTTPRequest);
 }
