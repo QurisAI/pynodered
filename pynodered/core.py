@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from pprint import pprint
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -64,7 +65,6 @@ class ContextData:
         self._new_data = dict()
 
     def __getitem__(self, item):
-        # print(item)
         if item in self._new_data:
             return self._new_data[item]
         else:
@@ -114,7 +114,7 @@ class RNBaseNode(metaclass=FormMetaClass):
 
     def __init__(self):
         self._status = None
-        self._selected_output = 0
+        self._selected_output = self.default_output
         self._outputs = {}
         self.global_data = None
         self.node_data = None
@@ -122,6 +122,7 @@ class RNBaseNode(metaclass=FormMetaClass):
         self.node_id = None
         self._msg = None
         self._topic = None
+        self._trace = {}
 
     def get_msg_id(self):
         if '_msgid' in self._msg:
@@ -181,7 +182,7 @@ class RNBaseNode(metaclass=FormMetaClass):
         self._outputs = {}
 
     def _clear_selected_output(self):
-        self._select_output = None
+        self._select_output = self.default_output
 
     # based on SFNR code (GPL v3)
     @classmethod
@@ -227,34 +228,22 @@ class RNBaseNode(metaclass=FormMetaClass):
             form += '<div class="form-row">\
                      <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>'
             if property.input_type == "text":
-                form += """
-                   <input type="text" id="node-input-%(name)s" placeholder="%(title)s">
-                   </div>
-                   """ % property.as_dict()
+                form += """ <input type="text" id="node-input-%(name)s" placeholder="%(title)s"> """
             elif property.input_type == "textarea":
-                form += """
-                       <textarea id="node-input-%(name)s" placeholder="%(title)s" rows="%(rows)s">
-                       </textarea>""" % property.as_dict()
+                form += """ <textarea id="node-input-%(name)s" placeholder="%(title)s" rows="%(rows)s">
+                       </textarea>"""
             elif property.input_type == "password":
-                form += """
-                   <input type="password" id="node-input-%(name)s" placeholder="%(title)s">
-                   """ % property.as_dict()
+                form += """ <input type="password" id="node-input-%(name)s" placeholder="%(title)s"> """
             elif property.input_type == "checkbox":
-                form += """
-                   <input type="checkbox" id="node-input-%(name)s" placeholder="%(title)s">
-                   """ % property.as_dict()
+                form += """ <input type="checkbox" id="node-input-%(name)s" placeholder="%(title)s"> """
             elif property.input_type == "select":
-                form += """
-                    <select id="node-input-%(name)s">
-                    """ % property.as_dict()
+                form += """ <select id="node-input-%(name)s"> """
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val == property.value else "")
                 form += "</select>\n"
             elif property.input_type == "multi_select":
-                form += """
-                        <select id="node-input-%(name)s" multiple size="%(rows)s">
-                    """ % property.as_dict()
+                form += """ <select id="node-input-%(name)s" multiple size="%(rows)s"> """
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val in property.value else "")
@@ -262,7 +251,7 @@ class RNBaseNode(metaclass=FormMetaClass):
             else:
                 raise Exception("Unknown input type")
             form += "</div>\n"
-
+            form %= property.as_dict()
         label_text = ""
         if len(cls.output_labels) >= 1:
             count = 0
@@ -331,6 +320,12 @@ class RNBaseNode(metaclass=FormMetaClass):
         logging.info("writing {}".format(out_path))
         open(out_path, 'w').write(template)
 
+    def add_trace_info(self, data):
+        if type(data) == dict:
+            self._trace.update(data)
+        else:
+            raise TypeError
+
     def run(self, msg, config, context):
         self._re_init()
         self._msg = msg
@@ -354,30 +349,34 @@ class RNBaseNode(metaclass=FormMetaClass):
         rv["context"]['node'] = self.node_data.changed_data()
         rv["context"]['flow'] = self.flow_data.changed_data()
 
-        # pprint(rv['context'])
-
         tf_res = []
-        # print(self.trace_function.__dict__)
         if self.trace_function is not None:
-            tf_res = self.trace_function(self._msg)
-        # pprint(rv)
-        if self._outputs is not {}:
+            tf_res = self.trace_function(self.msg)
+        if self._outputs != {}:
             if self.enable_trace:
                 for x in self._outputs:
-                    self._outputs[x]['_trace'] = rv['_trace'] + [[self.node_id, self.name, x] + tf_res]
-            # pprint(self._outputs)
+                    trace_data = {"node_id": self.node_id, "node_name": self.name, "output": x}
+                    if x < len(self.output_labels):
+                        trace_data["output_label"] = self.output_labels[x]
+                    trace_data.update(tf_res)
+                    trace_data.update(self._trace)
+                    self._outputs[x]['_trace'] = rv['_trace'] + [trace_data]
             rv['outputs'] = self._outputs
-            # print('shths')
-            # pprint(rv['outputs'])
         elif self._selected_output is not None:
             rv['selected_output'] = self._selected_output
             if self.enable_trace:
-                rv['_trace'].append([self.node_id, self.name, self._selected_output] + tf_res)
+                trace_data = {"node_id": self.node_id, "node_name": self.name, "output": self._selected_output}
+                if self._select_output < len(self.output_labels):
+                    trace_data["output_label"] = self.output_labels[self._selected_output]
+                trace_data.update(tf_res)
+                trace_data.update(self._trace)
+                rv['_trace'] = rv['_trace'] + [trace_data]
+                # rv['_trace'].append([self.node_id, self.name, self._selected_output,
+                # self.output_labels[self._select_output]] + tf_res + self._trace)
         else:
             raise PynoderedException("No output selected")
         if self._status:
             rv['status'] = self._status
-
         return rv
 
 

@@ -142,17 +142,15 @@ module.exports = function(RED) {
 
                         if (msgs.length > 0 ) {
 						    node.send(msgs);
-                            node.warn(msgs);
 						    is_sent = true;
                         }
                     } catch(e) { }
-                    if (! is_sent) {
+                    if (!is_sent) {
                         try {
                             const output = msg.payload["result"]["selected_output"];
                             msgs[output] = msg.payload["result"];
                             try { delete msg.payload["result"]["selected_output"]; } catch(e) {}
                             node.send(msgs);
-                            node.warn(msgs);
                         } catch(e) {
                             node.send(msg.payload["result"]);
                         }
