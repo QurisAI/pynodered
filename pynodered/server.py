@@ -17,9 +17,9 @@ app = Flask(__name__)
 app.register_blueprint(api.as_blueprint())
 
 
+userDir = Path.home() / ".node-red" 
 def node_directory(package_name):
-    # assume this also work on MacOS and Windows...
-    return Path.home().joinpath(".node-red").joinpath("node_modules").joinpath(package_name)
+    return Path(userDir) / "node_modules" / package_name  # assume this also work on MacOS and Windows...
 
 
 def main():
@@ -30,8 +30,12 @@ def main():
     parser.add_argument('--port',
                         help="port to use by Flask to run the Python server handling the request from Node-RED",
                         default=5051)
+    parser.add_argument('--userDir', default=Path.home() / ".node-red" )
     parser.add_argument('filenames', help='list of python file names or module names', nargs='+')
     args = parser.parse_args(sys.argv[1:])
+
+    global userDir
+    userDir = args.userDir
 
     # register files:
     packages = dict()

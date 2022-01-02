@@ -467,6 +467,9 @@ def node_red(name=None, title=None, category="default", description=None, join=N
 
     """
 
+    if not output_labels:
+        output_labels = []
+
     def wrapper(func):
         attrs = {}
         attrs['name'] = name if name is not None else func.__name__
@@ -513,6 +516,9 @@ def node_red(name=None, title=None, category="default", description=None, join=N
                 attrs[k] = properties[k]
 
         attrs['work'] = func
+        attrs['outputs'] = outputs
+        attrs['output_labels'] = output_labels
+
         cls = FormMetaClass(attrs['name'], (baseclass,), attrs)
 
         return cls
