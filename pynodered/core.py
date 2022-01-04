@@ -223,21 +223,38 @@ class RNBaseNode(metaclass=FormMetaClass):
         defaults = {}
         form = ""
 
+        input_type = 'input'
+        if cls.category == 'config':
+            input_type = 'config-input'
+
         for property in cls.properties:
             defaults[property.name] = property.as_dict('value', 'required', 'type', 'validate')
             form += '<div class="form-row">\
                      <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>'
             if property.input_type == "text":
-                form += """ <input type="text" id="node-input-%(name)s" placeholder="%(title)s"> """
-            elif property.input_type == "textarea":
-                form += """ <textarea id="node-input-%(name)s" placeholder="%(title)s" rows="%(rows)s">
-                       </textarea>"""
+                form += f"""
+                   <div class="form-row">
+                   <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                   <input type="text" id="node-{input_type}-%(name)s" placeholder="%(title)s">
+                   </div>""" % property.as_dict()
             elif property.input_type == "password":
-                form += """ <input type="password" id="node-input-%(name)s" placeholder="%(title)s"> """
+                form += f"""
+                   <div class="form-row">
+                   <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                   <input type="password" id="node-{input_type}-%(name)s" placeholder="%(title)s">
+                   </div>""" % property.as_dict()
             elif property.input_type == "checkbox":
-                form += """ <input type="checkbox" id="node-input-%(name)s" placeholder="%(title)s"> """
+                form += f"""
+                   <div class="form-row">
+                   <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                   <input type="checkbox" id="node-{input_type}-%(name)s" placeholder="%(title)s">
+                   </div>""" % property.as_dict()
             elif property.input_type == "select":
-                form += """ <select id="node-input-%(name)s"> """
+                form += f"""
+                    <div class="form-row">
+                    <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                    <select id="node-{input_type}-%(name)s">
+                    """ % property.as_dict()
                 for val in property.values:
                     form += '<option value="{0}" {1}>{0}</option>\n'.format(val,
                                                                             'selected="selected"' if val == property.value else "")
@@ -380,6 +397,9 @@ class RNBaseNode(metaclass=FormMetaClass):
         return rv
 
 
+class RNConfigNode(RNBaseNode):
+    rednode_template = "config"
+
 class NodeWaiting(Exception):
     pass
 
@@ -431,6 +451,37 @@ class Join(object):
     def clean(self, msg):
         del self.mem[msg['_msgid']]
 
+def node_red_config(name=None, title=None, description=None, properties=None, icon=None, color=None):
+    def wrapper(func):
+        attrs = dict()
+        attrs['name'] = name if name is not None else func.__name__
+        attrs['title'] = title if title is not None else attrs['name']
+        attrs['description'] = description if description is not None else func.__doc__
+        attrs['icon'] = icon if icon is not None else 'function'
+        attrs['outputs'] = 0
+        attrs['output_labels'] = []
+        attrs['category'] = 'config'
+
+        try:
+            if isinstance(color, str):
+                attrs['color'] = color
+            else:
+                attrs['color'] = "rgb({},{},{})".format(color[0], color[1], color[2]) if color is not None else "rgb(231,231,174)"
+        except (IndexError, TypeError):
+            attrs['color'] = color
+
+        if properties is not None:
+            if not isinstance(properties, dict):
+                raise Exception("properties must be a dictionary with key the variable name and value a NodeProperty")
+            for k in properties:
+                attrs[k] = properties[k]
+
+        attrs['work'] = func
+        cls = FormMetaClass(attrs['name'], (RNConfigNode, ), attrs)
+
+        return cls
+
+    return wrapper
 
 def node_red(name=None, title=None, category="default", description=None, join=None, baseclass=RNBaseNode,
              properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0,

@@ -7,4 +7,4 @@ __email__ = 'ghipicard@gmail.com'
 __version__ = '0.1.0'
 
 
-from pynodered.core import node_red, NodeProperty
+from pynodered.core import node_red, NodeProperty, node_red_config

@@ -57,6 +57,25 @@ module.exports = function(RED) {
 			}
 			var payload = null;
 
+
+            /*
+                Next part dereference nodes
+                TBD: do this recursively
+            */
+            let full_config = {}
+            Object.assign(full_config, n)
+
+            for (let prop in full_config) {
+                if (typeof(prop) != 'string')
+                    continue
+
+                let prop_node = RED.nodes.getNode(full_config[prop])
+                if (prop_node && full_config[prop] == prop_node.id) {
+                    full_config[prop] = prop_node
+                }
+            }
+
+
 			if (msg.payload && (method == "POST" || method == "PUT" || method == "PATCH" ) ) {
 				var nodeContext = node.context();
 				var flowContext = node.context().flow;
@@ -78,7 +97,7 @@ module.exports = function(RED) {
 					"method": "%(name)s",
 					"params": {
 						"msg": msg,
-						"config": n,
+						"config": full_config,
 						"context": context
 					},
 					"id": "1"

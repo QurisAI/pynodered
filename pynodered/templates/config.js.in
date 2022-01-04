@@ -1,0 +1,7 @@
+module.exports = function(RED) {
+    function ConfigNode(n) {
+        RED.nodes.createNode(this,n);
+        Object.assign(this, n);
+    }
+    RED.nodes.registerType('%(name)s', ConfigNode);
+}

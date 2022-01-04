@@ -1,0 +1,21 @@
+
+<script type="text/x-red" data-template-name="%(name)s">
+%(form)s
+</script>
+
+<script type="text/x-red" data-help-name="%(name)s">
+%(description)s
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('%(name)s',{
+        category: '%(category)s',
+        color:"%(color)s",
+        defaults: %(defaults)s,
+        icon: "%(icon)s.png",
+        label: function() {
+            return "%(title)s";
+        },
+    });
+</script>
+
