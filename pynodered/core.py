@@ -229,13 +229,17 @@ class RNBaseNode(metaclass=FormMetaClass):
 
         for property in cls.properties:
             defaults[property.name] = property.as_dict('value', 'required', 'type', 'validate')
-            form += '<div class="form-row">\
-                     <label for="node-input-%(name)s"><i class="icon-tag"></i> %(title)s</label>'
             if property.input_type == "text":
                 form += f"""
                    <div class="form-row">
                    <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
                    <input type="text" id="node-{input_type}-%(name)s" placeholder="%(title)s">
+                   </div>""" % property.as_dict()
+            elif property.input_type == "textarea":
+                form += f"""
+                   <div class="form-row">
+                   <label for="node-{input_type}-%(name)s"><i class="icon-tag"></i> %(title)s</label>
+                   <textarea id="node-{input_type}-%(name)s" placeholder="%(title)s" rows="%(rows)s></textarea>
                    </div>""" % property.as_dict()
             elif property.input_type == "password":
                 form += f"""
@@ -266,8 +270,8 @@ class RNBaseNode(metaclass=FormMetaClass):
                                                                             'selected="selected"' if val in property.value else "")
                 form += "</select>\n"
             else:
-                raise Exception("Unknown input type")
-            form += "</div>\n"
+                raise Exception(f"Unknown input type {property.input_type}")
+
             form %= property.as_dict()
         label_text = ""
         if len(cls.output_labels) >= 1:
@@ -311,6 +315,7 @@ class RNBaseNode(metaclass=FormMetaClass):
             button_str = "false"
 
         label_string = '[' + ",".join(["this." + lbl for lbl in cls.label if lbl in property_names]) + "]"
+
         template %= {
             'port': port,
             'name': cls.name,
@@ -357,6 +362,8 @@ class RNBaseNode(metaclass=FormMetaClass):
             msg['_trace'] = []
 
         rv = self.work(msg)
+        if not rv:
+            rv = {}
         if self.enable_trace and '_trace' not in rv:
             rv['_trace'] = msg['_trace']
 
@@ -451,7 +458,7 @@ class Join(object):
     def clean(self, msg):
         del self.mem[msg['_msgid']]
 
-def node_red_config(name=None, title=None, description=None, properties=None, icon=None, color=None):
+def node_red_config(name=None, title=None, description=None, properties=None, icon=None, color=None, palette_label=None):
     def wrapper(func):
         attrs = dict()
         attrs['name'] = name if name is not None else func.__name__
@@ -461,6 +468,15 @@ def node_red_config(name=None, title=None, description=None, properties=None, ic
         attrs['outputs'] = 0
         attrs['output_labels'] = []
         attrs['category'] = 'config'
+        attrs['button'] = False
+        attrs['button_data'] = None
+        attrs['label'] = []
+        attrs['inputs'] = 0
+        attrs['palette_label'] = palette_label if palette_label is not None else attrs['name']
+        attrs['input_label'] = ""
+        attrs['label_style'] = "node_label"
+        attrs['align'] = "left"
+        attrs['default_output'] = 0
 
         try:
             if isinstance(color, str):
@@ -485,8 +501,8 @@ def node_red_config(name=None, title=None, description=None, properties=None, ic
 
 def node_red(name=None, title=None, category="default", description=None, join=None, baseclass=RNBaseNode,
              properties=None, icon=None, color=None, outputs=1, output_labels=None, label=None, default_output=0,
-             label_style="node_label", align="left", inputs=1, input_label=None, palette_label=None, enable_trace=True,
-             trace_function=None, button=None, button_data=None):
+             label_style="node_label", align="left", inputs=1, input_label=None, palette_label=None, enable_trace=False,
+             trace_function=None, button=None, button_data='{}'):
     """decorator to make a python function available in node-red. The function must take two arguments, node and msg.
     msg is a dictionary with all the pairs of keys and value sent by node-red. Most interesting keys are 'payload',
     'topic' and 'msgid_'. The node argument is an instance of the underlying class created by this decorator. It can

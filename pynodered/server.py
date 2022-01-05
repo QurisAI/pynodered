@@ -120,7 +120,7 @@ def main():
     #     # and rules that require parameters
     #     print(rule.methods,rule.endpoint)
 
-    app.run(host='127.0.0.1', port=args.port, debug=True)
+    app.run(host='127.0.0.1', port=args.port)#, debug=True)
 
 
 if __name__ == '__main__':

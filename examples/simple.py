@@ -2,6 +2,12 @@ from pprint import pprint
 
 from pynodered import node_red, NodeProperty
 
+@node_red(category="pynodered")
+def lower_case(node, msg):
+    msg['payload'] = msg['payload'].lower()
+    return msg
+
+
 fn = "function:function(v) {var minimumLength=$('#node-input-number').length?$('#node-input-number').val(" \
      "):this.number; return v.length > minimumLength } "
 
@@ -10,7 +16,7 @@ def tf(msg):
     return [{"payload": msg['payload']}]
 
 
-@node_red(category="Slayer",
+@node_red(category="pynodered",
           inputs=0,
           button=True,
           name="test",
@@ -21,7 +27,7 @@ def test(node, msg):
     return msg
 
 
-@node_red(category="Slayer",
+@node_red(category="pynodered",
           properties=dict(number=NodeProperty("number", value="1", validate='int'),
                           number2=NodeProperty("Number1", value="2", validate='regexp:/^[a-z]+$/'),
                           number3=NodeProperty("Number2", value="2", validate=fn),
@@ -107,9 +113,4 @@ def repeat(node, msg):
     pprint(msg)
     # pprint(node.node_data)
     return msg
-#
-# @node_red(category="pyfuncs")
-# def lower_case(node, msg):
-#
-#     msg['payload'] = msg['payload'].lower()
-#     return msg
+
