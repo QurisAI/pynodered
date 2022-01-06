@@ -39,7 +39,7 @@
         },
         button: %(button)s,
         defaults: %(defaults)s,
-        icon: "%(icon)s.png",
+        icon: "%(icon)s",
         labelStyle: "%(label_style)s",
         align: "%(align)s",
         label: function() {
