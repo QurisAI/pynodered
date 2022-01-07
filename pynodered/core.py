@@ -35,7 +35,7 @@ class NodeProperty(object):
         self.rows = rows
 
     def as_dict(self, *args):
-        self.title = self.title or self.name
+        self.title = self.title or getattr(self, 'name', 'MissingName')
         if len(args) == 0:
             args = {"name", "title", "type", "value", "title", "required", "input_type", "validate", "rows"}
 
@@ -43,17 +43,12 @@ class NodeProperty(object):
 
 
 class FormMetaClass(type):
-    def __new__(cls, name, base, attrs):
-        new_class = super(FormMetaClass, cls).__new__(cls, name, base, attrs)
-
-        properties = list()
-        for name, attr in attrs.items():
-            if isinstance(attr, NodeProperty):
-                attr.name = name
-                properties.append(attr)
-        # sorting manually corresponds to the definition order of Fields.
-        new_class.properties = properties
-        return new_class
+    def __call__(cls, *args, **kwargs):
+        rv = super(FormMetaClass, cls).__call__(*args, **kwargs)
+        rv.properties = copy.deepcopy(rv.properties)
+        for property in rv.properties:
+            setattr(rv, property.name, property)
+        return rv
 
 
 class ContextData:
@@ -411,12 +406,13 @@ class NodeWaiting(Exception):
     pass
 
 
-def silent_node_waiting(f):
+def silent_node_waiting(cls, fstr):
     def applicator(*args, **kwargs):
         try:
-            return f(*args, **kwargs)
+            inst = cls()
+            return getattr(inst, fstr)(*args, **kwargs)
         except NodeWaiting:
-            return None  # silent_node_waiting
+            return None
 
     return applicator
 
@@ -459,6 +455,8 @@ class Join(object):
         del self.mem[msg['_msgid']]
 
 def node_red_config(name=None, title=None, description=None, properties=None, icon=None, color=None, palette_label=None):
+    properties = properties or {}
+
     def wrapper(func):
         attrs = dict()
         attrs['name'] = name if name is not None else func.__name__
@@ -486,13 +484,14 @@ def node_red_config(name=None, title=None, description=None, properties=None, ic
         except (IndexError, TypeError):
             attrs['color'] = color
 
-        if properties is not None:
-            if not isinstance(properties, dict):
-                raise Exception("properties must be a dictionary with key the variable name and value a NodeProperty")
-            for k in properties:
-                attrs[k] = properties[k]
+        if not isinstance(properties, dict):
+            raise Exception("properties must be a dictionary with key the variable name and value a NodeProperty")
+        for k in properties:
+            properties[k].name = k
 
         attrs['work'] = func
+        attrs['properties'] = list(properties.values())
+
         cls = FormMetaClass(attrs['name'], (RNConfigNode, ), attrs)
 
         return cls
@@ -534,8 +533,8 @@ def node_red(name=None, title=None, category="default", description=None, join=N
 
     """
 
-    if not output_labels:
-        output_labels = []
+    output_labels = output_labels or []
+    properties = properties or {}
 
     def wrapper(func):
         attrs = {}
@@ -576,17 +575,20 @@ def node_red(name=None, title=None, category="default", description=None, join=N
             else:
                 raise Exception("join must be a Join object or a sequence of topic (str)")
 
-        if properties is not None:
-            if not isinstance(properties, dict):
-                raise Exception("properties must be a dictionary with key the variable name and value a NodeProperty")
-            for k in properties:
-                attrs[k] = properties[k]
+        if not isinstance(properties, dict):
+            raise Exception("properties must be a dictionary with key the variable name and value a NodeProperty")
+        for k in properties:
+            properties[k].name = k
 
         attrs['work'] = func
         attrs['outputs'] = outputs
         attrs['output_labels'] = output_labels
+        attrs['properties'] = list(properties.values())
 
-        cls = FormMetaClass(attrs['name'], (baseclass,), attrs)
+        # Return a metaclass which will create the actual node instance
+        cls = FormMetaClass(attrs['name'], 
+                            (baseclass,), 
+                            attrs)
 
         return cls
 

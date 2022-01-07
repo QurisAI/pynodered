@@ -13,6 +13,9 @@ from pynodered.core import silent_node_waiting
 
 # https://media.readthedocs.org/pdf/json-rpc/latest/json-rpc.pdf
 
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(logging.ERROR)
+
 app = Flask(__name__)
 app.register_blueprint(api.as_blueprint())
 
@@ -98,8 +101,8 @@ def main():
                     logging.info("Install {}".format(name))
                     packages[package_name]["node-red"]["nodes"][obj.name] = obj.name + '.js'
 
-                inst = obj()
-                api.dispatcher.add_method(silent_node_waiting(inst.run), obj.name)
+                api.dispatcher.add_method(silent_node_waiting(obj, 'run'), obj.name)
+
                 registered += 1
 
                 # obj can run an http_server if it has one
