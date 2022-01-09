@@ -136,8 +136,14 @@ module.exports = function(RED) {
 							node.metric("size.bytes", msg, res.client.bytesRead);
 						}
 					}
+					
 					try { msg.payload = JSON.parse(msg.payload); }
 					catch(e) { node.warn(RED._("httpin.errors.json-error")); }
+					
+					let is_error = false;
+					try { is_error = msg.payload['result']['error']; }
+					catch (e) {}
+
 					try {
 						var context = msg.payload["result"]["context"];
 						for (const key in context["global"]) { globalContext.set(key, context.global[key]); }
@@ -151,28 +157,30 @@ module.exports = function(RED) {
                     var msgs = [];
                     // we first try if outputs is part of the results payload. Otherwise we check selected_output,
                     // which should always be there
-                    try {
-                        var outputs = msg.payload['result']['outputs']
-                        for (const key in outputs) {
-                            var k = parseInt(key);
-                            if (k == NaN) { continue; }
-                            msgs[k] = outputs[key];
-                        }
+					if (!is_error) {
+						try {
+							var outputs = msg.payload['result']['outputs']
+							for (const key in outputs) {
+								var k = parseInt(key);
+								if (k == NaN) { continue; }
+								msgs[k] = outputs[key];
+							}
 
-                        if (msgs.length > 0 ) {
-						    node.send(msgs);
-						    is_sent = true;
-                        }
-                    } catch(e) { }
-                    if (!is_sent) {
-                        try {
-                            const output = msg.payload["result"]["selected_output"];
-                            msgs[output] = msg.payload["result"];
-                            try { delete msg.payload["result"]["selected_output"]; } catch(e) {}
-                            node.send(msgs);
-                        } catch(e) {
-                            node.send(msg.payload["result"]);
-                        }
+							if (msgs.length > 0 ) {
+								node.send(msgs);
+								is_sent = true;
+							}
+						} catch(e) { }
+						if (!is_sent) {
+							try {
+								const output = msg.payload["result"]["selected_output"];
+								msgs[output] = msg.payload["result"];
+								try { delete msg.payload["result"]["selected_output"]; } catch(e) {}
+								node.send(msgs);
+							} catch(e) {
+								node.send(msg.payload["result"]);
+							}
+						}
 					}
 					try {
 					    var status = msg.payload['result']['status'];

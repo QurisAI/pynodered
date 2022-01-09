@@ -118,6 +118,7 @@ class RNBaseNode(metaclass=FormMetaClass):
         self._msg = None
         self._topic = None
         self._trace = {}
+        self._error = False
 
     def get_msg_id(self):
         if '_msgid' in self._msg:
@@ -137,12 +138,19 @@ class RNBaseNode(metaclass=FormMetaClass):
         self._clear_outputs()
         self._clear_status()
         self._clear_selected_output()
+        self._clear_error()
+
+    def set_error(self):
+        self._error = True
 
     def set_status(self, fill="grey", shape="dot", text="", timeout=10):
         self._status = {'fill': fill, 'shape': shape, 'text': text, 'timeout': timeout}
 
     def _clear_status(self):
         self._status = None
+
+    def _clear_error(self):
+        self._error = False
 
     def select_output(self, output=None):
         self._clear_outputs()
@@ -356,7 +364,13 @@ class RNBaseNode(metaclass=FormMetaClass):
         if self.enable_trace and '_trace' not in msg:
             msg['_trace'] = []
 
-        rv = self.work(msg)
+        try:
+            rv = self.work(msg)
+        except Exception as e:
+            rv = None
+            self.set_error()
+            self.set_status(fill="red", text=str(e), timeout=3)
+
         if not rv:
             rv = {}
         if self.enable_trace and '_trace' not in rv:
@@ -396,6 +410,8 @@ class RNBaseNode(metaclass=FormMetaClass):
             raise PynoderedException("No output selected")
         if self._status:
             rv['status'] = self._status
+        if self._error:
+            rv['error'] = self._error
         return rv
 
 
