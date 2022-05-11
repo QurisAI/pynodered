@@ -1,6 +1,21 @@
 from pprint import pprint
 
-from pynodered import node_red, NodeProperty
+from pynodered import node_red, NodeProperty, NodeContext
+
+class Counter:
+    def __init__(self):
+        self.n = 0
+    def inc(self):
+        self.n += 1
+
+@node_red(category="pynodered")
+def counter(node, msg):
+
+    with NodeContext(node.node_data, 'counter', Counter()) as counter:
+        counter.inc()
+        msg['payload'] = counter.n
+
+    return msg
 
 @node_red(category="pynodered")
 def lower_case(node, msg):

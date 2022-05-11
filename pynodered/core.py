@@ -3,8 +3,15 @@ import copy
 import json
 import logging
 import os
+import jsonpickle
 from pathlib import Path
 from pprint import pprint
+
+import jsonpickle.ext.numpy as jsonpickle_numpy
+# import jsonpickle.ext.pandas as jsonpickle_pandas
+
+jsonpickle_numpy.register_handlers()
+# jsonpickle_pandas.register_handlers()
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -61,13 +68,19 @@ class ContextData:
 
     def __getitem__(self, item):
         if item in self._new_data:
-            return self._new_data[item]
+            o = self._new_data[item]
         else:
-            return self._old_data.get(item)
+            o = self._old_data.get(item)
+        
+        jsonrep = json.dumps(o)
+        return jsonpickle.loads(jsonrep)
 
     def __setitem__(self, key, value):
         if self._old_data.get(key) != value:
-            self._new_data[key] = value
+            # First pickle the item to json
+            jsonrep = jsonpickle.dumps(value)
+            # Store the represented pickled as a dict
+            self._new_data[key] = json.loads(jsonrep)
 
     def __len__(self):
         return len(self._old_data) + len([a for a in self._old_data if a not in self._new_data])
@@ -99,6 +112,23 @@ class ContextData:
                 not (a in self._old_data and self._old_data[a] == self._new_data[a])}
         return data
 
+class NodeContext:
+    def __init__(self, context, key, default=None):
+        self.context = context
+        self.key = key
+        self.default = default
+        self.value = None
+
+    def __enter__(self):
+        if self.key in self.context:
+            self.value = self.context[self.key]
+        elif self.default:
+            self.value = self.default
+        return self.value
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if self.value:
+            self.context[self.key] = self.value
 
 class RNBaseNode(metaclass=FormMetaClass):
     """ Base class for Red-Node nodes. All user-defined nodes should derived from it.

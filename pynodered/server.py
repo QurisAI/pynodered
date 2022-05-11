@@ -1,4 +1,5 @@
 import argparse
+from asyncore import dispatcher
 import copy
 import importlib
 import inspect
@@ -9,12 +10,27 @@ from pathlib import Path
 
 from flask import Flask
 from jsonrpc.backend.flask import api
+from jsonrpc.backend.flask import JSONRPCAPI
+from jsonrpc.utils import DatetimeDecimalEncoder
 from pynodered.core import silent_node_waiting
 
 # https://media.readthedocs.org/pdf/json-rpc/latest/json-rpc.pdf
 
 werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.ERROR)
+
+class MyFlaskJSONRPCAPI(JSONRPCAPI):
+    @staticmethod
+    def _serialize(s):
+        return json.dumps(s, cls=MyEncoder)
+
+class MyEncoder(DatetimeDecimalEncoder):
+    def default(self, o):
+        if hasattr(o, 'serialize'):
+            return o.serialize()
+        return super().default(o)
+
+# api = MyFlaskJSONRPCAPI()
 
 app = Flask(__name__)
 app.register_blueprint(api.as_blueprint())
